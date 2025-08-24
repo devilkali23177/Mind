@@ -1,0 +1,1252 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Advanced Mind Map with Touch Support</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      overflow: hidden; 
+      background: #111; 
+      color: #fff; 
+      touch-action: none; /* Prevent browser handling of touch gestures */
+    }
+    #toolbar { 
+      padding: 8px; 
+      background: #222; 
+      position: fixed; 
+      top: 0; 
+      left: 0; 
+      right: 0; 
+      z-index: 10; 
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    #toolbar button, #toolbar select, #toolbar input { 
+      padding: 10px 14px; /* Larger for touch */
+      background: #444; 
+      color: white;
+      border: 1px solid #666;
+      border-radius: 6px; /* Slightly larger radius */
+      cursor: pointer;
+      font-size: 14px; /* Slightly larger text */
+      min-height: 20px; /* Minimum touch target size */
+    }
+    #toolbar button:hover, #toolbar select:hover {
+      background: #555;
+    }
+    #toolbar button.active {
+      background: #2a6b9b;
+    }
+    #toolbar input {
+      background: #333;
+      width: 100px;
+      min-height: 20px;
+    }
+    #toolbar .separator {
+      width: 1px;
+      background: #444;
+      margin: 0 8px;
+      height: 24px;
+    }
+    #stage { 
+      position: absolute; 
+      top: 50px; /* Increased for larger toolbar */ 
+      left: 0; 
+      right: 0; 
+      bottom: 0; 
+      overflow: auto; 
+      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    #world { 
+      position: relative; 
+      width: 5000px; 
+      height: 5000px; 
+      transform-origin: 0 0;
+    }
+    .node { 
+      position: absolute; 
+      min-width: 130px; /* Slightly larger for touch */
+      max-width: 250px;
+      padding: 12px 16px; /* More padding for touch */
+      background: #333; 
+      border: 2px solid #666; /* Thicker border for visibility */
+      border-radius: 10px; /* Slightly larger radius */
+      cursor: grab; 
+      user-select: none; 
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: transform 0.1s ease;
+      font-size: 16px; /* Slightly larger text */
+      touch-action: none; /* Prevent browser handling of touch on nodes */
+    }
+    .node:hover {
+      transform: scale(1.02);
+    }
+    .node.selected { 
+      border-color: #0ff; 
+      box-shadow: 0 0 10px rgba(0,255,255,0.5);
+    }
+    .node.dragging {
+      cursor: grabbing;
+      opacity: 0.9;
+    }
+    .node-content {
+      min-height: 24px; /* Slightly larger */
+      word-wrap: break-word;
+    }
+    svg { 
+      position: absolute; 
+      inset: 0; 
+      pointer-events: none; 
+    }
+    line.connection {
+      stroke: #0ff;
+      stroke-width: 2;
+    }
+    line.connection.highlight {
+      stroke: #ff0;
+      stroke-width: 3;
+    }
+    #zoom-display {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 10px; /* Slightly larger */
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 5;
+    }
+    .context-menu {
+      position: fixed;
+      background: #333;
+      border: 1px solid #555;
+      border-radius: 4px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+      z-index: 100;
+      min-width: 150px; /* Minimum width for touch */
+    }
+    .context-menu-item {
+      padding: 12px 16px; /* Larger for touch */
+      cursor: pointer;
+      font-size: 16px; /* Slightly larger text */
+    }
+    .context-menu-item:hover {
+      background: #444;
+    }
+    .color-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px; /* Slightly larger gap */
+      padding: 10px; /* More padding */
+      width: 140px; /* Slightly wider */
+    }
+    .color-option {
+      width: 28px; /* Larger color options */
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #555; /* Thicker border */
+    }
+    .node-edit-input {
+      position: absolute;
+      background: #222;
+      border: 2px solid #0ff;
+      border-radius: 6px;
+      padding: 8px; /* More padding */
+      color: white;
+      font: inherit;
+      z-index: 20;
+      min-width: 120px; /* Slightly larger */
+      resize: both;
+      overflow: auto;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+      font-size: 16px; /* Slightly larger text */
+    }
+    #edit-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #333;
+      border: 2px solid #0ff;
+      border-radius: 8px;
+      padding: 20px;
+      z-index: 100;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+      width: 320px; /* Slightly wider */
+      display: none;
+    }
+    #edit-panel h3 {
+      margin-top: 0;
+      color: #0ff;
+      border-bottom: 1px solid #555;
+      padding-bottom: 10px;
+      font-size: 18px; /* Slightly larger */
+    }
+    #edit-textarea {
+      width: 100%;
+      height: 120px;
+      background: #222;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 10px; /* More padding */
+      resize: vertical;
+      margin-bottom: 15px;
+      font-family: inherit;
+      font-size: 16px; /* Slightly larger text */
+    }
+    #edit-panel-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    #edit-panel button {
+      padding: 10px 18px; /* Larger buttons */
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px; /* Slightly larger text */
+      min-width: 80px; /* Minimum button width */
+    }
+    #edit-panel-save {
+      background: #2a6b9b;
+      color: white;
+    }
+    #edit-panel-cancel {
+      background: #555;
+      color: white;
+    }
+    #overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 90;
+      display: none;
+    }
+    
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+      #toolbar {
+        padding: 6px;
+        gap: 4px;
+        overflow-x: auto; /* Allow horizontal scrolling on mobile */
+        white-space: nowrap;
+        height: 44px; /* Fixed height */
+      }
+      #toolbar button, #toolbar select, #toolbar input {
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      #stage {
+        top: 46px; /* Adjusted for smaller toolbar */
+      }
+      .node {
+        min-width: 110px;
+        padding: 10px 12px;
+        font-size: 15px;
+      }
+      #zoom-display {
+        bottom: 5px;
+        right: 5px;
+        font-size: 12px;
+        padding: 4px 8px;
+      }
+    }
+    
+    /* Prevent text selection on UI elements */
+    .node, #toolbar button, .context-menu-item {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    
+    /* Long press detection style */
+    .long-press {
+      animation: pulse 0.8s infinite alternate;
+    }
+    @keyframes pulse {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="addBtn">Add Node</button>
+    <button id="connectBtn">Connect Nodes</button>
+    <button id="editBtn">Edit Node</button>
+    <button id="deleteBtn">Delete</button>
+    <div class="separator"></div>
+    <button id="zoomInBtn">Zoom In</button>
+    <button id="zoomOutBtn">Zoom Out</button>
+    <button id="resetViewBtn">Reset View</button>
+    <div class="separator"></div>
+    <button id="colorBtn">Color</button>
+    <button id="exportBtn">Export</button>
+    <button id="importBtn">Import</button>
+    <div class="separator"></div>
+    <select id="layoutBtn">
+      <option value="">Layout</option>
+      <option value="horizontal">Horizontal</option>
+      <option value="vertical">Vertical</option>
+      <option value="radial">Radial</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="Search nodes...">
+  </div>
+  <div id="stage">
+    <div id="world">
+      <svg id="edges" width="5000" height="5000"></svg>
+    </div>
+  </div>
+  <div id="zoom-display">100%</div>
+  
+  <!-- Edit Panel -->
+  <div id="overlay"></div>
+  <div id="edit-panel">
+    <h3>Edit Node Content</h3>
+    <textarea id="edit-textarea"></textarea>
+    <div id="edit-panel-buttons">
+      <button id="edit-panel-cancel">Cancel</button>
+      <button id="edit-panel-save">Save</button>
+    </div>
+  </div>
+  
+  <script>
+    // Main application variables
+    const world = document.getElementById('world');
+    const edgesSVG = document.getElementById('edges');
+    let nodes = {};
+    let edges = [];
+    let idCounter = 1;
+    let connectMode = false;
+    let editMode = false;
+    let connectFrom = null;
+    let selectedNode = null;
+    let scale = 1;
+    let panning = false;
+    let startX, startY;
+    let initialPinchDistance = null;
+    let lastX = 0, lastY = 0;
+    let activeEditInput = null;
+    let longPressTimer = null;
+    let isLongPress = false;
+    
+    // New variables for fixing node dragging
+    let isDraggingNode = false;
+    let initialTouchPositions = null;
+    
+    // Initialize the application
+    function init() {
+      // Add event listeners
+      setupEventListeners();
+      
+      // Add initial node
+      addNode(500, 500, 'Main Topic');
+      
+      // Update zoom display
+      updateZoomDisplay();
+    }
+    
+    // Set up all event listeners
+    function setupEventListeners() {
+      // Toolbar buttons
+      document.getElementById('addBtn').onclick = () => {
+        const x = 500 + Math.random() * 400;
+        const y = 500 + Math.random() * 400;
+        addNode(x, y, 'New Node');
+      };
+      
+      document.getElementById('connectBtn').onclick = () => {
+        connectMode = !connectMode;
+        editMode = false;
+        document.getElementById('connectBtn').classList.toggle('active', connectMode);
+        document.getElementById('editBtn').classList.remove('active');
+        connectFrom = null;
+        clearSelection();
+      };
+      
+      document.getElementById('editBtn').onclick = () => {
+        editMode = !editMode;
+        connectMode = false;
+        document.getElementById('editBtn').classList.toggle('active', editMode);
+        document.getElementById('connectBtn').classList.remove('active');
+      };
+      
+      document.getElementById('deleteBtn').onclick = deleteSelected;
+      
+      document.getElementById('zoomInBtn').onclick = () => adjustZoom(0.1);
+      document.getElementById('zoomOutBtn').onclick = () => adjustZoom(-0.1);
+      document.getElementById('resetViewBtn').onclick = resetView;
+      
+      document.getElementById('colorBtn').onclick = showColorMenu;
+      document.getElementById('exportBtn').onclick = exportData;
+      document.getElementById('importBtn').onclick = () => document.getElementById('importInput')?.click() || createImportInput();
+      
+      document.getElementById('layoutBtn').onchange = (e) => {
+        if (e.target.value) applyLayout(e.target.value);
+      };
+      
+      document.getElementById('searchInput').oninput = (e) => {
+        searchNodes(e.target.value);
+      };
+      
+      // Edit panel buttons
+      document.getElementById('edit-panel-save').onclick = saveEditPanel;
+      document.getElementById('edit-panel-cancel').onclick = closeEditPanel;
+      document.getElementById('overlay').onclick = closeEditPanel;
+      
+      // Panning and zooming
+      world.addEventListener('wheel', handleWheel, { passive: false });
+      world.addEventListener('mousedown', startPan);
+      document.addEventListener('mousemove', handlePan);
+      document.addEventListener('mouseup', stopPan);
+      
+      // Touch events for mobile
+      setupTouchEvents();
+      
+      // Context menu
+      world.addEventListener('contextmenu', handleContextMenu);
+      
+      // Click outside to clear selection
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.node') && !e.target.closest('.context-menu') && 
+            !e.target.closest('.node-edit-input') && !e.target.closest('#edit-panel')) {
+          clearSelection();
+          hideContextMenu();
+        }
+      });
+      
+      // Double click to edit
+      world.addEventListener('dblclick', (e) => {
+        const node = e.target.closest('.node');
+        if (node) {
+          const nodeId = node.dataset.id;
+          selectNode(nodeId);
+          showEditPanel(nodes[nodeId]);
+        }
+      });
+    }
+    
+    // Enhanced touch event setup
+    function setupTouchEvents() {
+      // Single touch for panning and node interaction
+      world.addEventListener('touchstart', handleTouchStart, { passive: false });
+      world.addEventListener('touchmove', handleTouchMove, { passive: false });
+      world.addEventListener('touchend', handleTouchEnd);
+      world.addEventListener('touchcancel', handleTouchEnd);
+      
+      // Prevent elastic scrolling on iOS
+      document.body.addEventListener('touchmove', function(e) {
+        if (e.target.closest('#stage') || e.target.closest('#world')) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+      
+      // Add long press support for context menu
+      world.addEventListener('touchstart', handleLongPressStart, { passive: true });
+      world.addEventListener('touchend', handleLongPressEnd);
+      world.addEventListener('touchcancel', handleLongPressEnd);
+    }
+    
+    // Long press handling for touch devices
+    function handleLongPressStart(e) {
+      if (e.touches.length !== 1) return;
+      
+      const node = e.target.closest('.node');
+      if (node) {
+        isLongPress = false;
+        longPressTimer = setTimeout(() => {
+          isLongPress = true;
+          const touch = e.touches[0];
+          const nodeId = node.dataset.id;
+          selectedNode = nodeId;
+          node.classList.add('long-press');
+          showNodeContextMenu(touch.clientX, touch.clientY);
+        }, 500); // 500ms for long press
+      }
+    }
+    
+    function handleLongPressEnd(e) {
+      clearTimeout(longPressTimer);
+      document.querySelectorAll('.node').forEach(n => n.classList.remove('long-press'));
+      
+      // If it was a long press, prevent the default click behavior
+      if (isLongPress) {
+        e.preventDefault();
+        isLongPress = false;
+      }
+    }
+    
+    // Enhanced touch event handlers
+    function handleTouchStart(e) {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        startX = touch.clientX - lastX;
+        startY = touch.clientY - lastY;
+        
+        // Check if touching a node
+        const node = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.node');
+        if (node) {
+          const nodeId = node.dataset.id;
+          
+          if (connectMode) {
+            if (!connectFrom) {
+              connectFrom = nodeId;
+              node.classList.add('selected');
+            } else if (connectFrom !== nodeId) {
+              addEdge(connectFrom, nodeId);
+              document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+              connectFrom = null;
+            }
+            e.preventDefault();
+          } else {
+            e.preventDefault();
+            selectNode(nodeId);
+            // Store initial positions for node dragging
+            initialTouchPositions = {
+              nodeX: nodes[nodeId].x,
+              nodeY: nodes[nodeId].y,
+              clientX: touch.clientX,
+              clientY: touch.clientY
+            };
+            isDraggingNode = true;
+          }
+        } else {
+          // Not touching a node, prepare for panning
+          isDraggingNode = false;
+        }
+      } else if (e.touches.length === 2) {
+        // Two touches - prepare for pinch to zoom
+        isDraggingNode = false;
+        initialPinchDistance = getDistance(
+          e.touches[0].clientX, e.touches[0].clientY,
+          e.touches[1].clientX, e.touches[1].clientY
+        );
+        e.preventDefault();
+      }
+    }
+    
+    function handleTouchMove(e) {
+      if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        
+        if (isDraggingNode && selectedNode) {
+          // Dragging a node
+          const dx = (touch.clientX - initialTouchPositions.clientX) / scale;
+          const dy = (touch.clientY - initialTouchPositions.clientY) / scale;
+          
+          nodes[selectedNode].x = initialTouchPositions.nodeX + dx;
+          nodes[selectedNode].y = initialTouchPositions.nodeY + dy;
+          
+          const nodeEl = world.querySelector(`[data-id="${selectedNode}"]`);
+          if (nodeEl) {
+            nodeEl.style.left = nodes[selectedNode].x + 'px';
+            nodeEl.style.top = nodes[selectedNode].y + 'px';
+          }
+          
+          refreshEdgesFor(selectedNode);
+          e.preventDefault();
+        } else {
+          // Panning the canvas
+          lastX = touch.clientX - startX;
+          lastY = touch.clientY - startY;
+          world.style.left = lastX + 'px';
+          world.style.top = lastY + 'px';
+          e.preventDefault();
+        }
+      } else if (e.touches.length === 2) {
+        // Two touches - pinch to zoom
+        isDraggingNode = false;
+        const currentDistance = getDistance(
+          e.touches[0].clientX, e.touches[0].clientY,
+          e.touches[1].clientX, e.touches[1].clientY
+        );
+        
+        if (initialPinchDistance !== null) {
+          const zoomFactor = currentDistance / initialPinchDistance;
+          scale = Math.max(0.1, Math.min(5, scale * zoomFactor));
+          world.style.transform = `scale(${scale})`;
+          initialPinchDistance = currentDistance;
+          updateZoomDisplay();
+        }
+        e.preventDefault();
+      }
+    }
+    
+    function handleTouchEnd(e) {
+      if (e.touches.length === 0) {
+        initialPinchDistance = null;
+        isDraggingNode = false;
+        
+        // Handle node selection on tap (not long press)
+        if (!isLongPress && e.changedTouches.length === 1 && !initialTouchPositions) {
+          const touch = e.changedTouches[0];
+          const node = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.node');
+          
+          if (node) {
+            const nodeId = node.dataset.id;
+            
+            if (editMode) {
+              showEditPanel(nodes[nodeId]);
+            } else if (!connectMode) {
+              selectNode(nodeId);
+            }
+          }
+        }
+        isLongPress = false;
+        initialTouchPositions = null;
+      }
+    }
+    
+    // Node management functions
+    function addNode(x, y, title = 'New Node') {
+      const id = 'n' + idCounter++;
+      const node = { 
+        id, 
+        x, 
+        y, 
+        title,
+        color: '#333',
+        width: 120,
+        height: 40
+      };
+      nodes[id] = node;
+
+      const el = document.createElement('div');
+      el.className = 'node';
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.backgroundColor = node.color;
+      el.dataset.id = id;
+      
+      const content = document.createElement('div');
+      content.className = 'node-content';
+      content.textContent = title;
+      el.appendChild(content);
+      
+      world.appendChild(el);
+
+      setupNodeInteractions(el, node);
+      return node;
+    }
+    
+    function setupNodeInteractions(el, node) {
+      let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+      
+      el.addEventListener('mousedown', e => {
+        if (e.button !== 0) return; // Only left click
+        
+        if (editMode) {
+          e.stopPropagation();
+          showEditPanel(node);
+          return;
+        }
+        
+        dragging = true;
+        sx = e.clientX;
+        sy = e.clientY;
+        ox = node.x;
+        oy = node.y;
+        el.classList.add('dragging');
+        
+        selectNode(node.id);
+        e.stopPropagation();
+        
+        // Prevent panning when dragging a node
+        e.preventDefault();
+      });
+      
+      window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const dx = (e.clientX - sx) / scale;
+        const dy = (e.clientY - sy) / scale;
+        node.x = ox + dx;
+        node.y = oy + dy;
+        el.style.left = node.x + 'px';
+        el.style.top = node.y + 'px';
+        refreshEdgesFor(node.id);
+        
+        // Prevent panning when dragging a node
+        e.preventDefault();
+      });
+      
+      window.addEventListener('mouseup', () => {
+        if (dragging) {
+          dragging = false;
+          el.classList.remove('dragging');
+        }
+      });
+      
+      el.addEventListener('click', e => {
+        if (connectMode) {
+          if (!connectFrom) {
+            connectFrom = node.id;
+            el.classList.add('selected');
+          } else if (connectFrom !== node.id) {
+            addEdge(connectFrom, node.id);
+            document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+            connectFrom = null;
+          }
+          e.stopPropagation();
+        } else if (!editMode) {
+          selectNode(node.id);
+          e.stopPropagation();
+        }
+      });
+    }
+    
+    function selectNode(nodeId) {
+      clearSelection();
+      selectedNode = nodeId;
+      const el = world.querySelector(`[data-id="${nodeId}"]`);
+      if (el) el.classList.add('selected');
+    }
+    
+    function clearSelection() {
+      selectedNode = null;
+      document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+    }
+    
+    function deleteSelected() {
+      if (!selectedNode) return;
+      
+      // Remove node
+      const el = world.querySelector(`[data-id="${selectedNode}"]`);
+      if (el) el.remove();
+      
+      // Remove connected edges
+      edges = edges.filter(edge => {
+        if (edge.from === selectedNode || edge.to === selectedNode) {
+          return false;
+        }
+        return true;
+      });
+      
+      // Remove from nodes object
+      delete nodes[selectedNode];
+      
+      // Refresh edges display
+      refreshAllEdges();
+      
+      clearSelection();
+    }
+    
+    // Edit panel functions
+    function showEditPanel(node) {
+      if (!node) return;
+      
+      const editPanel = document.getElementById('edit-panel');
+      const editTextarea = document.getElementById('edit-textarea');
+      const overlay = document.getElementById('overlay');
+      
+      editTextarea.value = node.title;
+      editPanel.style.display = 'block';
+      overlay.style.display = 'block';
+      
+      // Store reference to the node being edited
+      editPanel.dataset.editingNode = node.id;
+      
+      // Focus the textarea
+      setTimeout(() => {
+        editTextarea.focus();
+        // Move cursor to end of text
+        editTextarea.setSelectionRange(editTextarea.value.length, editTextarea.value.length);
+      }, 100);
+    }
+    
+    function closeEditPanel() {
+      const editPanel = document.getElementById('edit-panel');
+      const overlay = document.getElementById('overlay');
+      
+      editPanel.style.display = 'none';
+      overlay.style.display = 'none';
+      delete editPanel.dataset.editingNode;
+    }
+    
+    function saveEditPanel() {
+      const editPanel = document.getElementById('edit-panel');
+      const editTextarea = document.getElementById('edit-textarea');
+      const nodeId = editPanel.dataset.editingNode;
+      
+      if (nodeId && nodes[nodeId]) {
+        nodes[nodeId].title = editTextarea.value;
+        const el = world.querySelector(`[data-id="${nodeId}"]`);
+        if (el) {
+          const contentEl = el.querySelector('.node-content');
+          if (contentEl) contentEl.textContent = editTextarea.value;
+        }
+      }
+      
+      closeEditPanel();
+    }
+    
+    // Edge management functions
+    function addEdge(from, to) {
+      // Check if edge already exists
+      if (edges.some(edge => (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from))) {
+        return;
+      }
+      
+      const edge = { from, to };
+      edges.push(edge);
+      drawEdge(edge);
+    }
+    
+    function nodeCenter(id) {
+      const n = nodes[id];
+      const el = world.querySelector('[data-id="'+id+'"]');
+      return { 
+        x: n.x + el.offsetWidth/2, 
+        y: n.y + el.offsetHeight/2 
+      };
+    }
+    
+    function drawEdge(edge) {
+      const a = nodeCenter(edge.from);
+      const b = nodeCenter(edge.to);
+      
+      const path = document.createElementNS('http://www.w3.org/2000/svg','line');
+      path.setAttribute('x1', a.x);
+      path.setAttribute('y1', a.y);
+      path.setAttribute('x2', b.x);
+      path.setAttribute('y2', b.y);
+      path.setAttribute('stroke', '#0ff');
+      path.setAttribute('stroke-width', '2');
+      path.classList.add('connection');
+      path.dataset.from = edge.from;
+      path.dataset.to = edge.to;
+      
+      edgesSVG.appendChild(path);
+    }
+    
+    function refreshEdgesFor(nodeId) {
+      refreshAllEdges();
+    }
+    
+    function refreshAllEdges() {
+      edgesSVG.innerHTML = '';
+      edges.forEach(drawEdge);
+    }
+    
+    // View manipulation functions
+    function adjustZoom(amount) {
+      scale += amount;
+      scale = Math.max(0.1, Math.min(5, scale)); // Limit zoom range
+      world.style.transform = `scale(${scale})`;
+      updateZoomDisplay();
+    }
+    
+    function resetView() {
+      scale = 1;
+      world.style.transform = `scale(${scale})`;
+      world.style.left = '0px';
+      world.style.top = '0px';
+      lastX = 0;
+      lastY = 0;
+      updateZoomDisplay();
+    }
+    
+    function updateZoomDisplay() {
+      document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
+    }
+    
+    function startPan(e) {
+      if (e.button !== 0 || e.target.closest('.node') || e.target.closest('.node-edit-input')) return;
+      panning = true;
+      startX = e.clientX - lastX;
+      startY = e.clientY - lastY;
+      world.style.cursor = 'grabbing';
+    }
+    
+    function handlePan(e) {
+      if (!panning) return;
+      e.preventDefault();
+      
+      lastX = e.clientX - startX;
+      lastY = e.clientY - startY;
+      
+      world.style.left = lastX + 'px';
+      world.style.top = lastY + 'px';
+    }
+    
+    function stopPan() {
+      panning = false;
+      world.style.cursor = 'default';
+    }
+    
+    function handleWheel(e) {
+      e.preventDefault();
+      
+      if (e.ctrlKey) {
+        // Zoom with Ctrl+Wheel
+        const delta = e.deltaY < 0 ? 0.1 : -0.1;
+        adjustZoom(delta);
+      } else {
+        // Pan with wheel (normal scrolling)
+        world.scrollLeft -= e.deltaX;
+        world.scrollTop -= e.deltaY;
+      }
+    }
+    
+    function getDistance(x1, y1, x2, y2) {
+      return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+    
+    // Context menu
+    function handleContextMenu(e) {
+      e.preventDefault();
+      hideContextMenu();
+      
+      const node = e.target.closest('.node');
+      if (node) {
+        selectedNode = node.dataset.id;
+        node.classList.add('selected');
+        showNodeContextMenu(e.clientX, e.clientY);
+      } else {
+        showCanvasContextMenu(e.clientX, e.clientY);
+      }
+    }
+    
+    function showNodeContextMenu(x, y) {
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      
+      const items = [
+        { text: 'Edit', action: () => showEditPanel(nodes[selectedNode]) },
+        { text: 'Change Color', action: showColorMenu },
+        { text: 'Delete', action: deleteSelected }
+      ];
+      
+      items.forEach(item => {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item';
+        menuItem.textContent = item.text;
+        menuItem.onclick = item.action;
+        menu.appendChild(menuItem);
+      });
+      
+      document.body.appendChild(menu);
+    }
+    
+    function showCanvasContextMenu(x, y) {
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+      
+      const menuItem = document.createElement('div');
+      menuItem.className = 'context-menu-item';
+      menuItem.textContent = 'Add Node Here';
+      
+      const rect = world.getBoundingClientRect();
+      const worldX = (x - rect.left - lastX) / scale;
+      const worldY = (y - rect.top - lastY) / scale;
+      
+      menuItem.onclick = () => addNode(worldX, worldY, 'New Node');
+      menu.appendChild(menuItem);
+      
+      document.body.appendChild(menu);
+    }
+    
+    function hideContextMenu() {
+      const menus = document.querySelectorAll('.context-menu');
+      menus.forEach(menu => menu.remove());
+    }
+    
+    // Color menu
+    function showColorMenu() {
+      if (!selectedNode) return;
+      
+      hideContextMenu();
+      
+      const nodeEl = world.querySelector(`[data-id="${selectedNode}"]`);
+      if (!nodeEl) return;
+      
+      const rect = nodeEl.getBoundingClientRect();
+      const menu = document.createElement('div');
+      menu.className = 'context-menu color-picker';
+      menu.style.left = (rect.left + rect.width) + 'px';
+      menu.style.top = rect.top + 'px';
+      
+      const colors = [
+        '#2ecc71', '#3498db', '#9b59b6', '#e74c3c', 
+        '#f1c40f', '#1abc9c', '#34495e', '#e67e22'
+      ];
+      
+      colors.forEach(color => {
+        const colorOption = document.createElement('div');
+        colorOption.className = 'color-option';
+        colorOption.style.backgroundColor = color;
+        colorOption.onclick = () => {
+          nodes[selectedNode].color = color;
+          nodeEl.style.backgroundColor = color;
+          hideContextMenu();
+        };
+        menu.appendChild(colorOption);
+      });
+      
+      document.body.appendChild(menu);
+    }
+    
+    // Import/Export functions
+    function exportData() {
+      const data = {
+        nodes: Object.values(nodes),
+        edges: edges,
+        idCounter: idCounter
+      };
+      
+      const dataStr = JSON.stringify(data);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+      
+      const exportFileDefaultName = 'mind-map.json';
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
+    }
+    
+    function createImportInput() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.id = 'importInput';
+      input.accept = '.json';
+      input.style.display = 'none';
+      input.onchange = handleImport;
+      document.body.appendChild(input);
+      input.click();
+    }
+    
+    function handleImport(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          loadData(data);
+        } catch (err) {
+          alert('Error importing file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+    
+    function loadData(data) {
+      // Clear current data
+      nodes = {};
+      edges = [];
+      idCounter = data.idCounter || 1;
+      world.querySelectorAll('.node').forEach(n => n.remove());
+      edgesSVG.innerHTML = '';
+      
+      // Load nodes
+      data.nodes.forEach(nodeData => {
+        nodes[nodeData.id] = nodeData;
+        
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.style.left = nodeData.x + 'px';
+        el.style.top = nodeData.y + 'px';
+        el.style.backgroundColor = nodeData.color || '#333';
+        el.dataset.id = nodeData.id;
+        
+        const content = document.createElement('div');
+        content.className = 'node-content';
+        content.textContent = nodeData.title;
+        el.appendChild(content);
+        
+        world.appendChild(el);
+        setupNodeInteractions(el, nodeData);
+      });
+      
+      // Load edges
+      data.edges.forEach(edge => {
+        edges.push(edge);
+        drawEdge(edge);
+      });
+    }
+    
+    // Layout algorithms
+    function applyLayout(type) {
+      const nodeList = Object.values(nodes);
+      if (nodeList.length === 0) return;
+      
+      const rootId = findRootNode();
+      if (!rootId) return;
+      
+      switch (type) {
+        case 'horizontal':
+          horizontalLayout(rootId);
+          break;
+        case 'vertical':
+          verticalLayout(rootId);
+          break;
+        case 'radial':
+          radialLayout(rootId);
+          break;
+      }
+      
+      // Reset layout dropdown
+      document.getElementById('layoutBtn').value = '';
+    }
+    
+    function findRootNode() {
+      // Try to find a node named "Main Topic" or similar
+      let root = Object.values(nodes).find(n => 
+        n.title.toLowerCase().includes('main') || 
+        n.title.toLowerCase().includes('root') ||
+        n.title.toLowerCase().includes('center')
+      );
+      
+      // If not found, use the first node
+      if (!root) root = Object.values(nodes)[0];
+      
+      return root ? root.id : null;
+    }
+    
+    function horizontalLayout(rootId) {
+      // Simple horizontal tree layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      const nodeWidth = nodeEl.offsetWidth;
+      const nodeHeight = nodeEl.offsetHeight;
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children (simplified)
+      let xOffset = 300;
+      let yOffset = 0;
+      
+      Object.values(nodes).forEach(node => {
+        if (node.id !== rootId) {
+          node.x = root.x + xOffset;
+          node.y = root.y + yOffset;
+          
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          el.style.left = node.x + 'px';
+          el.style.top = node.y + 'px';
+          
+          yOffset += nodeHeight + 50;
+        }
+      });
+      
+      refreshAllEdges();
+    }
+    
+    function verticalLayout(rootId) {
+      // Simple vertical tree layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      const nodeWidth = nodeEl.offsetWidth;
+      const nodeHeight = nodeEl.offsetHeight;
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children (simplified)
+      let xOffset = 0;
+      let yOffset = 150;
+      
+      Object.values(nodes).forEach(node => {
+        if (node.id !== rootId) {
+          node.x = root.x + xOffset;
+          node.y = root.y + yOffset;
+          
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          el.style.left = node.x + 'px';
+          el.style.top = node.y + 'px';
+          
+          xOffset += nodeWidth + 50;
+        }
+      });
+      
+      refreshAllEdges();
+    }
+    
+    function radialLayout(rootId) {
+      // Simple radial layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children in a circle
+      const children = Object.values(nodes).filter(n => n.id !== rootId);
+      const radius = 200;
+      const angleStep = (2 * Math.PI) / children.length;
+      
+      children.forEach((node, i) => {
+        const angle = i * angleStep;
+        node.x = root.x + radius * Math.cos(angle);
+        node.y = root.y + radius * Math.sin(angle);
+        
+        const el = world.querySelector(`[data-id="${node.id}"]`);
+        el.style.left = node.x + 'px';
+        el.style.top = node.y + 'px';
+      });
+      
+      refreshAllEdges();
+    }
+    
+    // Search functionality
+    function searchNodes(query) {
+      if (!query) {
+        // Reset all nodes
+        Object.values(nodes).forEach(node => {
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          if (el) {
+            el.style.opacity = '1';
+            el.style.border = '2px solid #666';
+          }
+        });
+        return;
+      }
+      
+      const lowerQuery = query.toLowerCase();
+      Object.values(nodes).forEach(node => {
+        const el = world.querySelector(`[data-id="${node.id}"]`);
+        if (el) {
+          if (node.title.toLowerCase().includes(lowerQuery)) {
+            el.style.opacity = '1';
+            el.style.border = '2px solid #ff0';
+          } else {
+            el.style.opacity = '0.3';
+            el.style.border = '2px solid #666';
+          }
+        }
+      });
+    }
+    
+    // Initialize the app when the DOM is loaded
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
