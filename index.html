@@ -235,26 +235,6 @@
       display: none;
     }
     
-    /* Placement mode styles */
-    #placement-indicator {
-      position: absolute;
-      width: 200px;
-      height: 200px;
-      border: 2px dashed #0ff;
-      border-radius: 10px;
-      pointer-events: none;
-      z-index: 5;
-      display: none;
-      background-color: rgba(0, 255, 255, 0.1);
-    }
-    #placement-preview {
-      position: absolute;
-      pointer-events: none;
-      z-index: 4;
-      opacity: 0.7;
-      display: none;
-    }
-    
     /* Mobile-specific styles */
     @media (max-width: 768px) {
       #toolbar {
@@ -316,7 +296,6 @@
     <button id="colorBtn">Color</button>
     <button id="exportBtn">Export</button>
     <button id="importBtn">Import</button>
-    <button id="placementBtn">Placement Mode</button>
     <div class="separator"></div>
     <select id="layoutBtn">
       <option value="">Layout</option>
@@ -329,8 +308,6 @@
   <div id="stage">
     <div id="world">
       <svg id="edges" width="5000" height="5000"></svg>
-      <div id="placement-indicator"></div>
-      <div id="placement-preview"></div>
     </div>
   </div>
   <div id="zoom-display">100%</div>
@@ -370,14 +347,6 @@
     let isDraggingNode = false;
     let initialTouchPositions = null;
     
-    // Placement mode variables
-    let placementMode = false;
-    let importData = null;
-    let placementX = 0;
-    let placementY = 0;
-    const placementIndicator = document.getElementById('placement-indicator');
-    const placementPreview = document.getElementById('placement-preview');
-    
     // Initialize the application
     function init() {
       // Add event listeners
@@ -402,23 +371,17 @@
       document.getElementById('connectBtn').onclick = () => {
         connectMode = !connectMode;
         editMode = false;
-        placementMode = false;
         document.getElementById('connectBtn').classList.toggle('active', connectMode);
         document.getElementById('editBtn').classList.remove('active');
-        document.getElementById('placementBtn').classList.remove('active');
         connectFrom = null;
         clearSelection();
-        hidePlacementUI();
       };
       
       document.getElementById('editBtn').onclick = () => {
         editMode = !editMode;
         connectMode = false;
-        placementMode = false;
         document.getElementById('editBtn').classList.toggle('active', editMode);
         document.getElementById('connectBtn').classList.remove('active');
-        document.getElementById('placementBtn').classList.remove('active');
-        hidePlacementUI();
       };
       
       document.getElementById('deleteBtn').onclick = deleteSelected;
@@ -430,18 +393,6 @@
       document.getElementById('colorBtn').onclick = showColorMenu;
       document.getElementById('exportBtn').onclick = exportData;
       document.getElementById('importBtn').onclick = () => document.getElementById('importInput')?.click() || createImportInput();
-      
-      // Placement mode button
-      document.getElementById('placementBtn').onclick = () => {
-        placementMode = !placementMode;
-        document.getElementById('placementBtn').classList.toggle('active', placementMode);
-        
-        if (placementMode && importData) {
-          showPlacementUI();
-        } else {
-          hidePlacementUI();
-        }
-      };
       
       document.getElementById('layoutBtn').onchange = (e) => {
         if (e.target.value) applyLayout(e.target.value);
@@ -461,10 +412,6 @@
       world.addEventListener('mousedown', startPan);
       document.addEventListener('mousemove', handlePan);
       document.addEventListener('mouseup', stopPan);
-      
-      // Placement mode mouse events
-      world.addEventListener('mousemove', handlePlacementMove);
-      world.addEventListener('click', handlePlacementClick);
       
       // Touch events for mobile
       setupTouchEvents();
@@ -661,78 +608,6 @@
         isLongPress = false;
         initialTouchPositions = null;
       }
-    }
-    
-    // Placement mode functions
-    function handlePlacementMove(e) {
-      if (!placementMode || !importData) return;
-      
-      const rect = world.getBoundingClientRect();
-      placementX = (e.clientX - rect.left - lastX) / scale;
-      placementY = (e.clientY - rect.top - lastY) / scale;
-      
-      // Update placement indicator position
-      placementIndicator.style.left = (placementX - 100) + 'px';
-      placementIndicator.style.top = (placementY - 100) + 'px';
-      placementIndicator.style.display = 'block';
-      
-      // Update preview if we have import data
-      updatePlacementPreview();
-    }
-    
-    function handlePlacementClick(e) {
-      if (!placementMode || !importData) return;
-      
-      // Place the imported mind map at the selected location
-      if (confirm("Do you want to merge this mind map with your current one? Click OK to merge, Cancel to replace.")) {
-        mergeData(importData, placementX, placementY);
-      } else {
-        loadData(importData, placementX, placementY);
-      }
-      
-      // Reset placement mode
-      placementMode = false;
-      importData = null;
-      document.getElementById('placementBtn').classList.remove('active');
-      hidePlacementUI();
-    }
-    
-    function showPlacementUI() {
-      placementIndicator.style.display = 'block';
-      placementPreview.style.display = 'block';
-    }
-    
-    function hidePlacementUI() {
-      placementIndicator.style.display = 'none';
-      placementPreview.style.display = 'none';
-    }
-    
-    function updatePlacementPreview() {
-      if (!importData || !importData.nodes || importData.nodes.length === 0) return;
-      
-      // Calculate bounds of the imported mind map
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      importData.nodes.forEach(node => {
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x);
-        maxY = Math.max(maxY, node.y);
-      });
-      
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      
-      // Create preview HTML
-      let previewHTML = '';
-      importData.nodes.forEach(node => {
-        const relativeX = node.x - centerX;
-        const relativeY = node.y - centerY;
-        previewHTML += `<div class="node" style="left:${placementX + relativeX}px;top:${placementY + relativeY}px;background-color:${node.color || '#333'};opacity:0.5;">
-          <div class="node-content">${node.title}</div>
-        </div>`;
-      });
-      
-      placementPreview.innerHTML = previewHTML;
     }
     
     // Node management functions
@@ -1073,18 +948,16 @@
       menu.style.left = x + 'px';
       menu.style.top = y + 'px';
       
-      const items = [
-        { text: 'Add Node', action: () => addNode(x, y, 'New Node') },
-        { text: 'Reset View', action: resetView }
-      ];
+      const menuItem = document.createElement('div');
+      menuItem.className = 'context-menu-item';
+      menuItem.textContent = 'Add Node Here';
       
-      items.forEach(item => {
-        const menuItem = document.createElement('div');
-        menuItem.className = 'context-menu-item';
-        menuItem.textContent = item.text;
-        menuItem.onclick = item.action;
-        menu.appendChild(menuItem);
-      });
+      const rect = world.getBoundingClientRect();
+      const worldX = (x - rect.left - lastX) / scale;
+      const worldY = (y - rect.top - lastY) / scale;
+      
+      menuItem.onclick = () => addNode(worldX, worldY, 'New Node');
+      menu.appendChild(menuItem);
       
       document.body.appendChild(menu);
     }
@@ -1094,6 +967,7 @@
       menus.forEach(menu => menu.remove());
     }
     
+    // Color menu
     function showColorMenu() {
       if (!selectedNode) return;
       
@@ -1105,24 +979,24 @@
       const rect = nodeEl.getBoundingClientRect();
       const menu = document.createElement('div');
       menu.className = 'context-menu color-picker';
-      menu.style.left = rect.right + 'px';
+      menu.style.left = (rect.left + rect.width) + 'px';
       menu.style.top = rect.top + 'px';
       
       const colors = [
-        '#333', '#2a6b9b', '#3d8e5e', '#9b6b2a', 
-        '#9b2a5e', '#5e2a9b', '#9b8e2a', '#2a9b8e'
+        '#2ecc71', '#3498db', '#9b59b6', '#e74c3c', 
+        '#f1c40f', '#1abc9c', '#34495e', '#e67e22'
       ];
       
       colors.forEach(color => {
-        const colorEl = document.createElement('div');
-        colorEl.className = 'color-option';
-        colorEl.style.backgroundColor = color;
-        colorEl.onclick = () => {
+        const colorOption = document.createElement('div');
+        colorOption.className = 'color-option';
+        colorOption.style.backgroundColor = color;
+        colorOption.onclick = () => {
           nodes[selectedNode].color = color;
           nodeEl.style.backgroundColor = color;
           hideContextMenu();
         };
-        menu.appendChild(colorEl);
+        menu.appendChild(colorOption);
       });
       
       document.body.appendChild(menu);
@@ -1132,27 +1006,26 @@
     function exportData() {
       const data = {
         nodes: Object.values(nodes),
-        edges: edges
+        edges: edges,
+        idCounter: idCounter
       };
       
-      const json = JSON.stringify(data, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      const dataStr = JSON.stringify(data);
+      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
       
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'mindmap.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const exportFileDefaultName = 'mind-map.json';
+      
+      const linkElement = document.createElement('a');
+      linkElement.setAttribute('href', dataUri);
+      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.click();
     }
     
     function createImportInput() {
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.json';
       input.id = 'importInput';
+      input.accept = '.json';
       input.style.display = 'none';
       input.onchange = handleImport;
       document.body.appendChild(input);
@@ -1164,470 +1037,215 @@
       if (!file) return;
       
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = function(e) {
         try {
-          const data = JSON.parse(event.target.result);
-          importData = data;
-          
-          // Ask user if they want to place the mind map
-          if (confirm("Do you want to place this mind map at a specific location? Click OK to place, Cancel to merge with current view.")) {
-            // Enable placement mode
-            placementMode = true;
-            document.getElementById('placementBtn').classList.add('active');
-            showPlacementUI();
-          } else {
-            // Merge with current view
-            if (confirm("Do you want to merge this mind map with your current one? Click OK to merge, Cancel to replace.")) {
-              mergeData(data);
-            } else {
-              loadData(data);
-            }
-          }
-        } catch (error) {
-          alert('Error importing file: ' + error.message);
+          const data = JSON.parse(e.target.result);
+          loadData(data);
+        } catch (err) {
+          alert('Error importing file: ' + err.message);
         }
       };
       reader.readAsText(file);
-      
-      // Clean up
-      e.target.remove();
     }
     
-    function loadData(data, offsetX = 0, offsetY = 0) {
+    function loadData(data) {
       // Clear current data
-      document.querySelectorAll('.node').forEach(n => n.remove());
+      nodes = {};
+      edges = [];
+      idCounter = data.idCounter || 1;
+      world.querySelectorAll('.node').forEach(n => n.remove());
       edgesSVG.innerHTML = '';
       
-      // Load new data
-      nodes = {};
-      edges = data.edges || [];
-      
-      // Find the center of the imported mind map
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      data.nodes.forEach(node => {
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x);
-        maxY = Math.max(maxY, node.y);
-      });
-      
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      
-      // Add nodes with offset
-      data.nodes.forEach(node => {
-        const relativeX = node.x - centerX;
-        const relativeY = node.y - centerY;
-        nodes[node.id] = {
-          ...node,
-          x: offsetX + relativeX,
-          y: offsetY + relativeY
-        };
+      // Load nodes
+      data.nodes.forEach(nodeData => {
+        nodes[nodeData.id] = nodeData;
         
         const el = document.createElement('div');
         el.className = 'node';
-        el.style.left = (offsetX + relativeX) + 'px';
-        el.style.top = (offsetY + relativeY) + 'px';
-        el.style.backgroundColor = node.color || '#333';
-        el.dataset.id = node.id;
+        el.style.left = nodeData.x + 'px';
+        el.style.top = nodeData.y + 'px';
+        el.style.backgroundColor = nodeData.color || '#333';
+        el.dataset.id = nodeData.id;
         
         const content = document.createElement('div');
         content.className = 'node-content';
-        content.textContent = node.title;
+        content.textContent = nodeData.title;
         el.appendChild(content);
         
         world.appendChild(el);
-        setupNodeInteractions(el, nodes[node.id]);
+        setupNodeInteractions(el, nodeData);
       });
       
-      // Update idCounter
-      const maxId = Math.max(...Object.keys(nodes).map(id => parseInt(id.substring(1))));
-      idCounter = maxId + 1;
-      
-      // Draw edges
-      refreshAllEdges();
-      
-      // Reset view
-      resetView();
-    }
-    
-    function mergeData(data, offsetX = 0, offsetY = 0) {
-      // Find the center of the imported mind map
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      data.nodes.forEach(node => {
-        minX = Math.min(minX, node.x);
-        minY = Math.min(minY, node.y);
-        maxX = Math.max(maxX, node.x);
-        maxY = Math.max(maxY, node.y);
-      });
-      
-      const centerX = (minX + maxX) / 2;
-      const centerY = (minY + maxY) / 2;
-      
-      // Add nodes with offset
-      data.nodes.forEach(node => {
-        const relativeX = node.x - centerX;
-        const relativeY = node.y - centerY;
-        const newNode = addNode(offsetX + relativeX, offsetY + relativeY, node.title);
-        newNode.color = node.color || '#333';
-        
-        // Update the node element with the correct color
-        const el = world.querySelector(`[data-id="${newNode.id}"]`);
-        if (el) {
-          el.style.backgroundColor = newNode.color;
-        }
-        
-        // Map old ID to new ID for edge connections
-        node.newId = newNode.id;
-      });
-      
-      // Add edges with updated node IDs
+      // Load edges
       data.edges.forEach(edge => {
-        const fromNode = data.nodes.find(n => n.id === edge.from);
-        const toNode = data.nodes.find(n => n.id === edge.to);
-        
-        if (fromNode && toNode && fromNode.newId && toNode.newId) {
-          addEdge(fromNode.newId, toNode.newId);
+        edges.push(edge);
+        drawEdge(edge);
+      });
+    }
+    
+    // Layout algorithms
+    function applyLayout(type) {
+      const nodeList = Object.values(nodes);
+      if (nodeList.length === 0) return;
+      
+      const rootId = findRootNode();
+      if (!rootId) return;
+      
+      switch (type) {
+        case 'horizontal':
+          horizontalLayout(rootId);
+          break;
+        case 'vertical':
+          verticalLayout(rootId);
+          break;
+        case 'radial':
+          radialLayout(rootId);
+          break;
+      }
+      
+      // Reset layout dropdown
+      document.getElementById('layoutBtn').value = '';
+    }
+    
+    function findRootNode() {
+      // Try to find a node named "Main Topic" or similar
+      let root = Object.values(nodes).find(n => 
+        n.title.toLowerCase().includes('main') || 
+        n.title.toLowerCase().includes('root') ||
+        n.title.toLowerCase().includes('center')
+      );
+      
+      // If not found, use the first node
+      if (!root) root = Object.values(nodes)[0];
+      
+      return root ? root.id : null;
+    }
+    
+    function horizontalLayout(rootId) {
+      // Simple horizontal tree layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      const nodeWidth = nodeEl.offsetWidth;
+      const nodeHeight = nodeEl.offsetHeight;
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children (simplified)
+      let xOffset = 300;
+      let yOffset = 0;
+      
+      Object.values(nodes).forEach(node => {
+        if (node.id !== rootId) {
+          node.x = root.x + xOffset;
+          node.y = root.y + yOffset;
+          
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          el.style.left = node.x + 'px';
+          el.style.top = node.y + 'px';
+          
+          yOffset += nodeHeight + 50;
         }
       });
       
-      // Refresh edges
       refreshAllEdges();
     }
     
-    // Search function
+    function verticalLayout(rootId) {
+      // Simple vertical tree layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      const nodeWidth = nodeEl.offsetWidth;
+      const nodeHeight = nodeEl.offsetHeight;
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children (simplified)
+      let xOffset = 0;
+      let yOffset = 150;
+      
+      Object.values(nodes).forEach(node => {
+        if (node.id !== rootId) {
+          node.x = root.x + xOffset;
+          node.y = root.y + yOffset;
+          
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          el.style.left = node.x + 'px';
+          el.style.top = node.y + 'px';
+          
+          xOffset += nodeWidth + 50;
+        }
+      });
+      
+      refreshAllEdges();
+    }
+    
+    function radialLayout(rootId) {
+      // Simple radial layout
+      const root = nodes[rootId];
+      const nodeEl = world.querySelector(`[data-id="${rootId}"]`);
+      
+      // Position root
+      root.x = 500;
+      root.y = 500;
+      nodeEl.style.left = root.x + 'px';
+      nodeEl.style.top = root.y + 'px';
+      
+      // Position children in a circle
+      const children = Object.values(nodes).filter(n => n.id !== rootId);
+      const radius = 200;
+      const angleStep = (2 * Math.PI) / children.length;
+      
+      children.forEach((node, i) => {
+        const angle = i * angleStep;
+        node.x = root.x + radius * Math.cos(angle);
+        node.y = root.y + radius * Math.sin(angle);
+        
+        const el = world.querySelector(`[data-id="${node.id}"]`);
+        el.style.left = node.x + 'px';
+        el.style.top = node.y + 'px';
+      });
+      
+      refreshAllEdges();
+    }
+    
+    // Search functionality
     function searchNodes(query) {
       if (!query) {
-        // Reset all nodes to normal
-        document.querySelectorAll('.node').forEach(node => {
-          node.style.opacity = '1';
-          node.style.border = '2px solid #666';
+        // Reset all nodes
+        Object.values(nodes).forEach(node => {
+          const el = world.querySelector(`[data-id="${node.id}"]`);
+          if (el) {
+            el.style.opacity = '1';
+            el.style.border = '2px solid #666';
+          }
         });
         return;
       }
       
       const lowerQuery = query.toLowerCase();
-      let hasMatch = false;
-      
-      // Search through nodes
       Object.values(nodes).forEach(node => {
-        const nodeEl = world.querySelector(`[data-id="${node.id}"]`);
-        if (!nodeEl) return;
-        
-        if (node.title.toLowerCase().includes(lowerQuery)) {
-          nodeEl.style.opacity = '1';
-          nodeEl.style.border = '2px solid #ff0';
-          hasMatch = true;
-        } else {
-          nodeEl.style.opacity = '0.3';
-          nodeEl.style.border = '2px solid #666';
+        const el = world.querySelector(`[data-id="${node.id}"]`);
+        if (el) {
+          if (node.title.toLowerCase().includes(lowerQuery)) {
+            el.style.opacity = '1';
+            el.style.border = '2px solid #ff0';
+          } else {
+            el.style.opacity = '0.3';
+            el.style.border = '2px solid #666';
+          }
         }
       });
-      
-      // Highlight edges connected to matching nodes
-      document.querySelectorAll('.connection').forEach(conn => {
-        const fromId = conn.dataset.from;
-        const toId = conn.dataset.to;
-        
-        const fromNode = nodes[fromId];
-        const toNode = nodes[toId];
-        
-        if (fromNode && toNode && 
-            (fromNode.title.toLowerCase().includes(lowerQuery) || 
-             toNode.title.toLowerCase().includes(lowerQuery))) {
-          conn.classList.add('highlight');
-        } else {
-          conn.classList.remove('highlight');
-        }
-      });
-      
-      // If no matches, show message
-      if (!hasMatch) {
-        // Could show a "no results" message here
-      }
     }
     
-    // Layout functions
-    function applyLayout(type) {
-      if (!selectedNode && Object.keys(nodes).length === 0) return;
-      
-      const rootId = selectedNode || Object.keys(nodes)[0];
-      const rootNode = nodes[rootId];
-      
-      switch (type) {
-        case 'horizontal':
-          applyHorizontalLayout(rootId);
-          break;
-        case 'vertical':
-          applyVerticalLayout(rootId);
-          break;
-        case 'radial':
-          applyRadialLayout(rootId);
-          break;
-      }
-      
-      // Reset the layout dropdown
-      document.getElementById('layoutBtn').value = '';
-      
-      // Refresh all edges
-      refreshAllEdges();
-    }
-    
-    function applyHorizontalLayout(rootId) {
-      const root = nodes[rootId];
-      const visited = new Set();
-      const queue = [{ node: root, x: root.x, y: root.y, level: 0 }];
-      visited.add(rootId);
-      
-      // First pass: calculate required space
-      const levelWidths = {};
-      const levelCounts = {};
-      
-      const measureQueue = [{ id: rootId, level: 0 }];
-      const measureVisited = new Set([rootId]);
-      
-      while (measureQueue.length > 0) {
-        const current = measureQueue.shift();
-        const node = nodes[current.id];
-        
-        // Count nodes at this level
-        levelCounts[current.level] = (levelCounts[current.level] || 0) + 1;
-        
-        // Find all connected nodes (both from and to edges)
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === current.id && !measureVisited.has(edge.to)) {
-            connectedNodes.push({ id: edge.to, level: current.level + 1 });
-          } else if (edge.to === current.id && !measureVisited.has(edge.from)) {
-            connectedNodes.push({ id: edge.from, level: current.level + 1 });
-          }
-        });
-        
-        // Add to queue
-        connectedNodes.forEach(n => {
-          measureQueue.push(n);
-          measureVisited.add(n.id);
-        });
-      }
-      
-      // Calculate level widths
-      const maxLevel = Math.max(...Object.keys(levelCounts).map(Number));
-      for (let level = 0; level <= maxLevel; level++) {
-        levelWidths[level] = (levelCounts[level] || 0) * 200;
-      }
-      
-      // Second pass: position nodes
-      while (queue.length > 0) {
-        const current = queue.shift();
-        const node = current.node;
-        
-        // Position the node
-        node.x = current.x;
-        node.y = current.y;
-        
-        const nodeEl = world.querySelector(`[data-id="${node.id}"]`);
-        if (nodeEl) {
-          nodeEl.style.left = node.x + 'px';
-          nodeEl.style.top = node.y + 'px';
-        }
-        
-        // Find all connected nodes
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === node.id && !visited.has(edge.to)) {
-            connectedNodes.push({ id: edge.to, direction: 'right' });
-          } else if (edge.to === node.id && !visited.has(edge.from)) {
-            connectedNodes.push({ id: edge.from, direction: 'left' });
-          }
-        });
-        
-        // Position connected nodes
-        connectedNodes.forEach((n, index) => {
-          const connectedNode = nodes[n.id];
-          if (!connectedNode) return;
-          
-          const level = current.level + 1;
-          const levelWidth = levelWidths[level] || 200;
-          const levelStartX = root.x - levelWidth / 2;
-          
-          // Calculate position based on level and index
-          const x = levelStartX + (index * 200) + 100;
-          const y = current.y;
-          
-          queue.push({ node: connectedNode, x, y, level });
-          visited.add(n.id);
-        });
-      }
-    }
-    
-    function applyVerticalLayout(rootId) {
-      const root = nodes[rootId];
-      const visited = new Set();
-      const queue = [{ node: root, x: root.x, y: root.y, level: 0 }];
-      visited.add(rootId);
-      
-      // First pass: calculate required space
-      const levelHeights = {};
-      const levelCounts = {};
-      
-      const measureQueue = [{ id: rootId, level: 0 }];
-      const measureVisited = new Set([rootId]);
-      
-      while (measureQueue.length > 0) {
-        const current = measureQueue.shift();
-        const node = nodes[current.id];
-        
-        // Count nodes at this level
-        levelCounts[current.level] = (levelCounts[current.level] || 0) + 1;
-        
-        // Find all connected nodes
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === current.id && !measureVisited.has(edge.to)) {
-            connectedNodes.push({ id: edge.to, level: current.level + 1 });
-          } else if (edge.to === current.id && !measureVisited.has(edge.from)) {
-            connectedNodes.push({ id: edge.from, level: current.level + 1 });
-          }
-        });
-        
-        // Add to queue
-        connectedNodes.forEach(n => {
-          measureQueue.push(n);
-          measureVisited.add(n.id);
-        });
-      }
-      
-      // Calculate level heights
-      const maxLevel = Math.max(...Object.keys(levelCounts).map(Number));
-      for (let level = 0; level <= maxLevel; level++) {
-        levelHeights[level] = (levelCounts[level] || 0) * 100;
-      }
-      
-      // Second pass: position nodes
-      while (queue.length > 0) {
-        const current = queue.shift();
-        const node = current.node;
-        
-        // Position the node
-        node.x = current.x;
-        node.y = current.y;
-        
-        const nodeEl = world.querySelector(`[data-id="${node.id}"]`);
-        if (nodeEl) {
-          nodeEl.style.left = node.x + 'px';
-          nodeEl.style.top = node.y + 'px';
-        }
-        
-        // Find all connected nodes
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === node.id && !visited.has(edge.to)) {
-            connectedNodes.push({ id: edge.to, direction: 'down' });
-          } else if (edge.to === node.id && !visited.has(edge.from)) {
-            connectedNodes.push({ id: edge.from, direction: 'up' });
-          }
-        });
-        
-        // Position connected nodes
-        connectedNodes.forEach((n, index) => {
-          const connectedNode = nodes[n.id];
-          if (!connectedNode) return;
-          
-          const level = current.level + 1;
-          const levelHeight = levelHeights[level] || 100;
-          const levelStartY = root.y - levelHeight / 2;
-          
-          // Calculate position based on level and index
-          const x = current.x;
-          const y = levelStartY + (index * 100) + 50;
-          
-          queue.push({ node: connectedNode, x, y, level });
-          visited.add(n.id);
-        });
-      }
-    }
-    
-    function applyRadialLayout(rootId) {
-      const root = nodes[rootId];
-      const visited = new Set();
-      const queue = [{ node: root, x: root.x, y: root.y, level: 0, angle: 0 }];
-      visited.add(rootId);
-      
-      // First pass: count nodes per level
-      const levelCounts = {};
-      
-      const measureQueue = [{ id: rootId, level: 0 }];
-      const measureVisited = new Set([rootId]);
-      
-      while (measureQueue.length > 0) {
-        const current = measureQueue.shift();
-        const node = nodes[current.id];
-        
-        // Count nodes at this level
-        levelCounts[current.level] = (levelCounts[current.level] || 0) + 1;
-        
-        // Find all connected nodes
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === current.id && !measureVisited.has(edge.to)) {
-            connectedNodes.push({ id: edge.to, level: current.level + 1 });
-          } else if (edge.to === current.id && !measureVisited.has(edge.from)) {
-            connectedNodes.push({ id: edge.from, level: current.level + 1 });
-          }
-        });
-        
-        // Add to queue
-        connectedNodes.forEach(n => {
-          measureQueue.push(n);
-          measureVisited.add(n.id);
-        });
-      }
-      
-      // Second pass: position nodes
-      while (queue.length > 0) {
-        const current = queue.shift();
-        const node = current.node;
-        
-        // Position the node
-        node.x = current.x;
-        node.y = current.y;
-        
-        const nodeEl = world.querySelector(`[data-id="${node.id}"]`);
-        if (nodeEl) {
-          nodeEl.style.left = node.x + 'px';
-          nodeEl.style.top = node.y + 'px';
-        }
-        
-        // Find all connected nodes
-        const connectedNodes = [];
-        edges.forEach(edge => {
-          if (edge.from === node.id && !visited.has(edge.to)) {
-            connectedNodes.push(edge.to);
-          } else if (edge.to === node.id && !visited.has(edge.from)) {
-            connectedNodes.push(edge.from);
-          }
-        });
-        
-        // Position connected nodes in a circle around the current node
-        connectedNodes.forEach((nodeId, index) => {
-          const connectedNode = nodes[nodeId];
-          if (!connectedNode) return;
-          
-          const level = current.level + 1;
-          const radius = level * 200;
-          const angleStep = (2 * Math.PI) / connectedNodes.length;
-          const angle = index * angleStep;
-          
-          const x = current.x + radius * Math.cos(angle);
-          const y = current.y + radius * Math.sin(angle);
-          
-          queue.push({ node: connectedNode, x, y, level, angle });
-          visited.add(nodeId);
-        });
-      }
-    }
-    
-    // Initialize the application when the DOM is loaded
+    // Initialize the app when the DOM is loaded
     document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
