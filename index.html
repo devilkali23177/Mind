@@ -101,14 +101,6 @@
       cursor: grabbing;
       opacity: 0.9;
     }
-    .node.connecting {
-      border-color: #ff0;
-      box-shadow: 0 0 10px rgba(255,255,0,0.5);
-    }
-    .node.connection-source {
-      border-color: #0f0;
-      box-shadow: 0 0 10px rgba(0,255,0,0.5);
-    }
     .node-content {
       min-height: 24px;
       word-wrap: break-word;
@@ -404,29 +396,6 @@
       margin-top: 10px;
     }
     
-    /* Connection line preview */
-    #connection-preview {
-      position: absolute;
-      pointer-events: none;
-      z-index: 5;
-      display: none;
-    }
-    
-    /* Connection mode indicator */
-    #connection-mode-indicator {
-      position: fixed;
-      top: 60px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 0, 0.8);
-      color: #000;
-      padding: 8px 16px;
-      border-radius: 4px;
-      z-index: 10;
-      font-weight: bold;
-      display: none;
-    }
-    
     /* Mobile-specific styles */
     @media (max-width: 768px) {
       #toolbar {
@@ -470,11 +439,6 @@
       }
       .map-item-actions {
         align-self: flex-end;
-      }
-      #connection-mode-indicator {
-        top: 50px;
-        font-size: 14px;
-        padding: 6px 12px;
       }
     }
     
@@ -526,9 +490,6 @@
     </div>
   </div>
 
-  <!-- Connection mode indicator -->
-  <div id="connection-mode-indicator">Connection Mode: Click on a node to start connecting</div>
-
   <div id="toolbar">
     <button id="addBtn">Add Node</button>
     <button id="connectBtn">Connect Nodes</button>
@@ -559,7 +520,6 @@
   <div id="stage">
     <div id="world">
       <svg id="edges" width="100000000000000000000000000000000000000000000000000000000000000000000" height="100000000000000000000000000000000000000000000000000000000000000000000"></svg>
-      <svg id="connection-preview"></svg>
     </div>
   </div>
   <div id="zoom-display">100%</div>
@@ -596,8 +556,6 @@
     // Main application variables
     const world = document.getElementById('world');
     const edgesSVG = document.getElementById('edges');
-    const connectionPreview = document.getElementById('connection-preview');
-    const connectionModeIndicator = document.getElementById('connection-mode-indicator');
     let nodes = {};
     let edges = [];
     let idCounter = 1;
@@ -780,7 +738,12 @@
       };
       
       document.getElementById('connectBtn').onclick = () => {
-        toggleConnectMode();
+        connectMode = !connectMode;
+        editMode = false;
+        document.getElementById('connectBtn').classList.toggle('active', connectMode);
+        document.getElementById('editBtn').classList.remove('active');
+        connectFrom = null;
+        clearSelection();
       };
       
       document.getElementById('editBtn').onclick = () => {
@@ -788,14 +751,6 @@
         connectMode = false;
         document.getElementById('editBtn').classList.toggle('active', editMode);
         document.getElementById('connectBtn').classList.remove('active');
-        
-        // Clear any connection in progress
-        resetConnectionMode();
-        
-        // Show instructions if edit mode is enabled
-        if (editMode) {
-          alert('Edit mode: Click on any node to edit its content.');
-        }
       };
       
       document.getElementById('deleteBtn').onclick = () => {
@@ -885,78 +840,6 @@
           isDraggingNode = false;
         }
       });
-      
-      // Improved connection mode handling
-      document.addEventListener('mousemove', handleConnectionPreview);
-    }
-    
-    // Toggle connection mode
-    function toggleConnectMode() {
-      connectMode = !connectMode;
-      editMode = false;
-      document.getElementById('connectBtn').classList.toggle('active', connectMode);
-      document.getElementById('editBtn').classList.remove('active');
-      
-      if (connectMode) {
-        // Show connection instructions
-        connectionModeIndicator.style.display = 'block';
-        connectionModeIndicator.textContent = 'Connection Mode: Click on a node to start connecting';
-        
-        // Highlight all nodes to indicate they're connectable
-        document.querySelectorAll('.node').forEach(node => {
-          node.classList.add('connecting');
-        });
-      } else {
-        // Exit connection mode
-        resetConnectionMode();
-      }
-      
-      clearSelection();
-    }
-    
-    // Reset connection mode to initial state
-    function resetConnectionMode() {
-      connectFrom = null;
-      clearConnectionPreview();
-      connectionModeIndicator.style.display = 'none';
-      
-      document.querySelectorAll('.node.connecting, .node.connection-source').forEach(node => {
-        node.classList.remove('connecting');
-        node.classList.remove('connection-source');
-      });
-    }
-    
-    // Handle connection preview line
-    function handleConnectionPreview(e) {
-      if (!connectMode || !connectFrom) return;
-      
-      const fromNode = nodes[connectFrom];
-      if (!fromNode) return;
-      
-      // Get mouse position relative to world
-      const rect = world.getBoundingClientRect();
-      const mouseX = (e.clientX - rect.left) / scale;
-      const mouseY = (e.clientY - rect.top) / scale;
-      
-      // Draw preview line
-      clearConnectionPreview();
-      
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('class', 'connection');
-      line.setAttribute('x1', fromNode.x + 65);
-      line.setAttribute('y1', fromNode.y + 20);
-      line.setAttribute('x2', mouseX);
-      line.setAttribute('y2', mouseY);
-      line.setAttribute('stroke-dasharray', '5,5');
-      
-      connectionPreview.appendChild(line);
-      connectionPreview.style.display = 'block';
-    }
-    
-    // Clear connection preview
-    function clearConnectionPreview() {
-      connectionPreview.innerHTML = '';
-      connectionPreview.style.display = 'none';
     }
     
     // Save mind map to Firebase
@@ -1068,8 +951,7 @@
         loadBtn.textContent = 'Load';
         loadBtn.onclick = (e) => {
           e.stopPropagation();
-          loadMap(mapId);
-          hideMapManager();
+          switchToMap(mapId);
         };
         
         const renameBtn = document.createElement('button');
@@ -1096,36 +978,27 @@
         mapItem.appendChild(mapInfo);
         mapItem.appendChild(mapActions);
         
-        mapItem.onclick = () => {
-          loadMap(mapId);
-          hideMapManager();
-        };
-        
         mapList.appendChild(mapItem);
       });
     }
     
-    // Load a specific mind map
-    function loadMap(mapId) {
-      if (!currentUser) return;
+    // Switch to a different mind map
+    function switchToMap(mapId) {
+      // Save current map first
+      saveToFirebase();
       
-      const userPath = currentUser.uid === 'guest' ? 'guest_maps' : `users/${currentUser.uid}/maps`;
+      // Clear current data
+      nodes = {};
+      edges = [];
+      idCounter = 1;
+      world.querySelectorAll('.node').forEach(n => n.remove());
+      edgesSVG.innerHTML = '';
+      clearSelection();
       
-      database.ref(`${userPath}/${mapId}`).once('value')
-        .then((snapshot) => {
-          const data = snapshot.val();
-          if (data) {
-            currentMapId = mapId;
-            loadData(data);
-            console.log(`Map "${mapId}" loaded successfully`);
-          } else {
-            console.error(`Map "${mapId}" not found`);
-          }
-        })
-        .catch((error) => {
-          console.error('Error loading map:', error);
-          alert('Failed to load map: ' + error.message);
-        });
+      // Set new map ID and load
+      currentMapId = mapId;
+      loadFromFirebase();
+      hideMapManager();
     }
     
     // Create a new mind map
@@ -1134,18 +1007,16 @@
       const mapName = mapNameInput.value.trim();
       
       if (!mapName) {
-        alert('Please enter a map name');
+        alert('Please enter a name for your new mind map');
         return;
       }
       
-      if (!currentUser) return;
-      
-      // Create a unique ID for the map
-      const mapId = mapName.toLowerCase().replace(/\s+/g, '_') + '_' + Date.now();
+      // Generate a unique ID for the map
+      const mapId = 'map_' + Date.now();
       
       // Create initial data for the new map
       const initialData = {
-        nodes: [{ id: 1, x: 500, y: 500, text: 'Main Topic', color: '#333' }],
+        nodes: [],
         edges: [],
         idCounter: 1,
         lastUpdated: Date.now(),
@@ -1156,15 +1027,15 @@
       
       database.ref(`${userPath}/${mapId}`).set(initialData)
         .then(() => {
-          console.log('New map created successfully');
+          // Add the new map to our local list
+          mindMaps[mapId] = initialData;
+          renderMapsList();
+          
+          // Clear the input field
           mapNameInput.value = '';
           
-          // Reload the maps list
-          loadMindMapsList();
-          
-          // Load the new map
-          loadMap(mapId);
-          hideMapManager();
+          // Switch to the new map
+          switchToMap(mapId);
         })
         .catch((error) => {
           console.error('Error creating new map:', error);
@@ -1174,43 +1045,44 @@
     
     // Rename a mind map
     function renameMap(mapId) {
-      const newName = prompt('Enter new name for this map:', mindMaps[mapId].name || mapId);
-      if (!newName || newName.trim() === '') return;
+      const newName = prompt('Enter a new name for this mind map:', mindMaps[mapId].name || mapId);
       
-      if (!currentUser) return;
-      
-      const userPath = currentUser.uid === 'guest' ? 'guest_maps' : `users/${currentUser.uid}/maps`;
-      
-      database.ref(`${userPath}/${mapId}/name`).set(newName.trim())
-        .then(() => {
-          console.log('Map renamed successfully');
-          loadMindMapsList(); // Refresh the list
-        })
-        .catch((error) => {
-          console.error('Error renaming map:', error);
-          alert('Failed to rename map: ' + error.message);
-        });
+      if (newName && newName.trim()) {
+        const userPath = currentUser.uid === 'guest' ? 'guest_maps' : `users/${currentUser.uid}/maps`;
+        
+        database.ref(`${userPath}/${mapId}/name`).set(newName.trim())
+          .then(() => {
+            // Update local data
+            mindMaps[mapId].name = newName.trim();
+            renderMapsList();
+          })
+          .catch((error) => {
+            console.error('Error renaming map:', error);
+            alert('Failed to rename map: ' + error.message);
+          });
+      }
     }
     
     // Delete a mind map
     function deleteMap(mapId) {
-      if (!confirm(`Are you sure you want to delete "${mindMaps[mapId].name || mapId}"?`)) return;
-      
-      if (!currentUser) return;
+      if (!confirm('Are you sure you want to delete this mind map? This action cannot be undone.')) {
+        return;
+      }
       
       const userPath = currentUser.uid === 'guest' ? 'guest_maps' : `users/${currentUser.uid}/maps`;
       
       database.ref(`${userPath}/${mapId}`).remove()
         .then(() => {
-          console.log('Map deleted successfully');
+          // Remove from local data
+          delete mindMaps[mapId];
           
-          // If we deleted the current map, switch to default
-          if (mapId === currentMapId) {
+          // If we're currently viewing the deleted map, switch to default
+          if (currentMapId === mapId) {
             currentMapId = 'default';
             loadFromFirebase();
           }
           
-          loadMindMapsList(); // Refresh the list
+          renderMapsList();
         })
         .catch((error) => {
           console.error('Error deleting map:', error);
@@ -1218,13 +1090,13 @@
         });
     }
     
-    // Show the map manager UI
+    // Show the mind map manager UI
     function showMapManager() {
-      document.getElementById('map-manager-container').style.display = 'flex';
       loadMindMapsList();
+      document.getElementById('map-manager-container').style.display = 'flex';
     }
     
-    // Hide the map manager UI
+    // Hide the mind map manager UI
     function hideMapManager() {
       document.getElementById('map-manager-container').style.display = 'none';
     }
@@ -1232,69 +1104,86 @@
     // Load data into the application
     function loadData(data) {
       // Clear existing nodes and edges
+      world.querySelectorAll('.node').forEach(n => n.remove());
+      edgesSVG.innerHTML = '';
       nodes = {};
       edges = data.edges || [];
       idCounter = data.idCounter || 1;
       
-      world.querySelectorAll('.node').forEach(n => n.remove());
-      edgesSVG.innerHTML = '';
-      
       // Create nodes
       if (data.nodes && data.nodes.length > 0) {
-        data.nodes.forEach(nodeData => {
-          createNodeFromData(nodeData);
+        data.nodes.forEach(node => {
+          createNodeElement(node);
+          nodes[node.id] = node;
         });
       } else {
-        // Fallback if no nodes in data
+        // If no nodes, create a default one
         addNode(500, 500, 'Main Topic');
       }
       
       // Draw edges
-      redrawEdges();
+      drawEdges();
       
-      // Reset view
-      resetView();
+      // Clear selection
+      clearSelection();
     }
     
-    // Create a node from saved data
-    function createNodeFromData(nodeData) {
-      const node = document.createElement('div');
-      node.className = 'node';
-      node.dataset.id = nodeData.id;
-      node.style.left = nodeData.x + 'px';
-      node.style.top = nodeData.y + 'px';
-      node.style.backgroundColor = nodeData.color || '#333';
+    // Create a node element from node data
+    function createNodeElement(node) {
+      const nodeElement = document.createElement('div');
+      nodeElement.className = 'node';
+      nodeElement.dataset.id = node.id;
+      nodeElement.style.left = node.x + 'px';
+      nodeElement.style.top = node.y + 'px';
+      nodeElement.style.backgroundColor = node.color || '#333';
+      nodeElement.style.borderColor = node.borderColor || '#666';
       
-      const content = document.createElement('div');
-      content.className = 'node-content';
-      content.textContent = nodeData.text || '';
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'node-content';
+      contentDiv.textContent = node.text;
       
-      node.appendChild(content);
-      world.appendChild(node);
+      nodeElement.appendChild(contentDiv);
+      world.appendChild(nodeElement);
       
-      // Store node in our data structure
-      nodes[nodeData.id] = {
-        id: nodeData.id,
-        x: nodeData.x,
-        y: nodeData.y,
-        text: nodeData.text || '',
-        color: nodeData.color || '#333'
-      };
+      // Add event listeners
+      setupNodeEventListeners(nodeElement);
       
-      // Add event listeners to the node
-      setupNodeEventListeners(node);
+      return nodeElement;
     }
     
     // Set up event listeners for a node
-    function setupNodeEventListeners(node) {
-      const nodeId = node.dataset.id;
+    function setupNodeEventListeners(nodeElement) {
+      // Mouse events
+      nodeElement.addEventListener('mousedown', handleNodeMouseDown);
       
-      // Click event for selection and connection
-      node.addEventListener('click', (e) => {
+      // Touch events
+      nodeElement.addEventListener('touchstart', handleNodeTouchStart, { passive: false });
+      nodeElement.addEventListener('touchmove', handleNodeTouchMove, { passive: false });
+      nodeElement.addEventListener('touchend', handleNodeTouchEnd);
+      nodeElement.addEventListener('touchcancel', handleNodeTouchEnd);
+      
+      // Click to select
+      nodeElement.addEventListener('click', (e) => {
         e.stopPropagation();
         
+        if (isLongPress) {
+          isLongPress = false;
+          return;
+        }
+        
+        const nodeId = nodeElement.dataset.id;
+        
         if (connectMode) {
-          handleNodeConnection(nodeId);
+          if (!connectFrom) {
+            connectFrom = nodeId;
+            nodeElement.classList.add('selected');
+          } else if (connectFrom !== nodeId) {
+            addEdge(connectFrom, nodeId);
+            connectMode = false;
+            document.getElementById('connectBtn').classList.remove('active');
+            clearSelection();
+            saveToFirebase(); // Auto-save after adding connection
+          }
         } else if (editMode) {
           selectNode(nodeId);
           showEditPanel(nodes[nodeId]);
@@ -1303,370 +1192,59 @@
         }
       });
       
-      // Mouse down for dragging
-      node.addEventListener('mousedown', startNodeDrag);
-      
-      // Touch events for mobile
-      node.addEventListener('touchstart', handleNodeTouchStart, { passive: false });
-      node.addEventListener('touchmove', handleNodeTouchMove, { passive: false });
-      node.addEventListener('touchend', handleNodeTouchEnd);
-      node.addEventListener('touchcancel', handleNodeTouchEnd);
-      
-      // Long press for context menu on mobile
-      node.addEventListener('touchstart', handleLongPressStart);
-      node.addEventListener('touchend', handleLongPressEnd);
-      node.addEventListener('touchmove', handleLongPressEnd);
-    }
-    
-    // Handle node connection logic
-    function handleNodeConnection(nodeId) {
-      if (!connectFrom) {
-        // First node selected for connection
-        connectFrom = nodeId;
-        document.querySelectorAll('.node').forEach(n => {
-          n.classList.remove('connecting');
-          if (n.dataset.id === nodeId) {
-            n.classList.add('connection-source');
-          }
-        });
-        connectionModeIndicator.textContent = 'Connection Mode: Now click on a node to connect to';
-      } else {
-        // Second node selected - create connection
-        if (connectFrom !== nodeId) {
-          // Check if connection already exists
-          const connectionExists = edges.some(edge => 
-            (edge.from === connectFrom && edge.to === nodeId) || 
-            (edge.from === nodeId && edge.to === connectFrom)
-          );
-          
-          if (!connectionExists) {
-            edges.push({ from: connectFrom, to: nodeId });
-            redrawEdges();
-            saveToFirebase(); // Auto-save after creating connection
-          }
-        }
-        
-        // Reset connection mode
-        resetConnectionMode();
-        
-        // If connection mode is still active, keep the connection UI
-        if (connectMode) {
-          document.querySelectorAll('.node').forEach(n => {
-            n.classList.add('connecting');
-          });
-        }
-      }
-    }
-    
-    // Handle node touch start event
-    function handleNodeTouchStart(e) {
-      e.stopPropagation();
-      
-      if (e.touches.length === 1) {
-        // Single touch - prepare for potential drag or long press
-        const touch = e.touches[0];
-        const node = e.currentTarget;
-        const nodeId = node.dataset.id;
-        
-        // Prevent default to avoid browser interactions
-        e.preventDefault();
-        
-        // Select the node
-        selectNode(nodeId);
-        
-        // Store initial touch position for dragging
-        initialTouchPositions = {
-          nodeX: nodes[nodeId].x,
-          nodeY: nodes[nodeId].y,
-          touchX: touch.clientX,
-          touchY: touch.clientY,
-          scrollLeft: world.scrollLeft,
-          scrollTop: world.scrollTop
-        };
-        
-        // Start long press timer
-        isLongPress = false;
-        longPressTimer = setTimeout(() => {
-          isLongPress = true;
-          showContextMenu(e, nodeId);
-        }, 500);
-      } else if (e.touches.length === 2) {
-        // Two-finger touch - cancel any pending actions
-        clearTimeout(longPressTimer);
-        isLongPress = false;
-      }
-    }
-    
-    // Handle node touch move event
-    function handleNodeTouchMove(e) {
-      if (e.touches.length === 1 && initialTouchPositions) {
-        // Single touch moving - drag the node
-        e.preventDefault();
-        e.stopPropagation();
-        
-        clearTimeout(longPressTimer);
-        isLongPress = false;
-        
-        const touch = e.touches[0];
-        const node = e.currentTarget;
-        const nodeId = node.dataset.id;
-        
-        // Calculate new position
-        const deltaX = (touch.clientX - initialTouchPositions.touchX) / scale;
-        const deltaY = (touch.clientY - initialTouchPositions.touchY) / scale;
-        
-        const newX = initialTouchPositions.nodeX + deltaX;
-        const newY = initialTouchPositions.nodeY + deltaY;
-        
-        // Update node position
-        moveNode(nodeId, newX, newY);
-        
-        // Redraw connections
-        redrawEdges();
-      }
-    }
-    
-    // Handle node touch end event
-    function handleNodeTouchEnd(e) {
-      e.stopPropagation();
-      
-      if (e.touches.length === 0 && initialTouchPositions) {
-        // Touch ended - check if it was a tap or long press
-        clearTimeout(longPressTimer);
-        
-        if (!isLongPress) {
-          // It was a tap, handle based on current mode
-          const nodeId = e.currentTarget.dataset.id;
-          
-          if (connectMode) {
-            handleNodeConnection(nodeId);
-          } else if (editMode) {
-            showEditPanel(nodes[nodeId]);
-          }
-          // For selection, it's already handled in touchstart
-        }
-        
-        // Reset touch state
-        initialTouchPositions = null;
-        isLongPress = false;
-        
-        // Save after dragging
-        saveToFirebase();
-      }
-    }
-    
-    // Handle long press start
-    function handleLongPressStart(e) {
-      if (e.touches.length === 1) {
-        const node = e.currentTarget;
-        node.classList.add('long-press');
-        
-        longPressTimer = setTimeout(() => {
-          const nodeId = node.dataset.id;
-          showContextMenu(e, nodeId);
-        }, 500);
-      }
-    }
-    
-    // Handle long press end
-    function handleLongPressEnd(e) {
-      clearTimeout(longPressTimer);
-      document.querySelectorAll('.node').forEach(n => {
-        n.classList.remove('long-press');
-      });
-    }
-    
-    // Set up touch events for the stage
-    function setupTouchEvents() {
-      const stage = document.getElementById('stage');
-      
-      stage.addEventListener('touchstart', (e) => {
-        if (e.touches.length === 2) {
-          // Two-finger touch for zooming
-          e.preventDefault();
-          
-          const touch1 = e.touches[0];
-          const touch2 = e.touches[1];
-          
-          initialPinchDistance = Math.hypot(
-            touch2.clientX - touch1.clientX,
-            touch2.clientY - touch1.clientY
-          );
-        } else if (e.touches.length === 1 && !e.target.closest('.node')) {
-          // Single finger touch on stage (not on a node) for panning
-          const touch = e.touches[0];
-          startX = touch.clientX;
-          startY = touch.clientY;
-          lastX = world.scrollLeft;
-          lastY = world.scrollTop;
-          panning = true;
-        }
-      }, { passive: false });
-      
-      stage.addEventListener('touchmove', (e) => {
-        if (e.touches.length === 2 && initialPinchDistance !== null) {
-          // Two-finger pinch zoom
-          e.preventDefault();
-          
-          const touch1 = e.touches[0];
-          const touch2 = e.touches[1];
-          
-          const currentDistance = Math.hypot(
-            touch2.clientX - touch1.clientX,
-            touch2.clientY - touch1.clientY
-          );
-          
-          const delta = currentDistance - initialPinchDistance;
-          
-          if (Math.abs(delta) > 5) {
-            adjustZoom(delta * 0.01);
-            initialPinchDistance = currentDistance;
-          }
-        } else if (e.touches.length === 1 && panning) {
-          // Single finger panning
-          e.preventDefault();
-          
-          const touch = e.touches[0];
-          const dx = touch.clientX - startX;
-          const dy = touch.clientY - startY;
-          
-          world.scrollLeft = lastX - dx;
-          world.scrollTop = lastY - dy;
-        }
-      }, { passive: false });
-      
-      stage.addEventListener('touchend', (e) => {
-        if (e.touches.length < 2) {
-          initialPinchDistance = null;
-        }
-        if (e.touches.length === 0) {
-          panning = false;
+      // Long press for mobile context menu
+      nodeElement.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+          longPressTimer = setTimeout(() => {
+            isLongPress = true;
+            const nodeId = nodeElement.dataset.id;
+            selectNode(nodeId);
+            showContextMenu(e.touches[0].clientX, e.touches[0].clientY, nodes[nodeId]);
+            e.preventDefault();
+          }, 500);
         }
       });
-    }
-    
-    // Start node dragging with mouse
-    function startNodeDrag(e) {
-      if (e.button !== 0) return; // Only left click
       
-      e.stopPropagation();
-      const node = e.target.closest('.node');
-      if (!node) return;
+      nodeElement.addEventListener('touchend', () => {
+        clearTimeout(longPressTimer);
+      });
       
-      const nodeId = node.dataset.id;
-      selectNode(nodeId);
-      
-      node.classList.add('dragging');
-      isDraggingNode = true;
-      
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const startLeft = nodes[nodeId].x;
-      const startTop = nodes[nodeId].y;
-      
-      function handleMouseMove(e) {
-        const dx = (e.clientX - startX) / scale;
-        const dy = (e.clientY - startY) / scale;
-        
-        moveNode(nodeId, startLeft + dx, startTop + dy);
-        redrawEdges();
-      }
-      
-      function handleMouseUp() {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-        node.classList.remove('dragging');
-        isDraggingNode = false;
-        saveToFirebase(); // Auto-save after dragging
-      }
-      
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
-    
-    // Move a node to a new position
-    function moveNode(nodeId, x, y) {
-      const node = nodes[nodeId];
-      if (!node) return;
-      
-      node.x = x;
-      node.y = y;
-      
-      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
-      if (nodeElement) {
-        nodeElement.style.left = x + 'px';
-        nodeElement.style.top = y + 'px';
-      }
+      nodeElement.addEventListener('touchmove', () => {
+        clearTimeout(longPressTimer);
+      });
     }
     
     // Add a new node
     function addNode(x, y, text) {
       const id = idCounter++;
-      const node = document.createElement('div');
-      node.className = 'node';
-      node.dataset.id = id;
-      node.style.left = x + 'px';
-      node.style.top = y + 'px';
+      const node = {
+        id: id,
+        x: x,
+        y: y,
+        text: text || 'New Node',
+        color: '#333',
+        borderColor: '#666'
+      };
       
-      const content = document.createElement('div');
-      content.className = 'node-content';
-      content.textContent = text;
+      nodes[id] = node;
+      createNodeElement(node);
       
-      node.appendChild(content);
-      world.appendChild(node);
-      
-      nodes[id] = { id, x, y, text, color: '#333' };
-      
-      setupNodeEventListeners(node);
-      selectNode(id);
-      
-      return id;
+      return node;
     }
     
-    // Select a node
-    function selectNode(nodeId) {
-      clearSelection();
-      
-      const node = document.querySelector(`.node[data-id="${nodeId}"]`);
-      if (node) {
-        node.classList.add('selected');
-        selectedNode = nodeId;
-      }
-    }
-    
-    // Clear selection
-    function clearSelection() {
-      document.querySelectorAll('.node.selected').forEach(node => {
-        node.classList.remove('selected');
-      });
-      selectedNode = null;
-    }
-    
-    // Delete selected node
-    function deleteSelected() {
-      if (!selectedNode) return;
-      
-      // Remove node from DOM
-      const nodeElement = document.querySelector(`.node[data-id="${selectedNode}"]`);
-      if (nodeElement) {
-        nodeElement.remove();
+    // Add an edge between two nodes
+    function addEdge(fromId, toId) {
+      // Check if edge already exists
+      if (edges.some(edge => edge.from === fromId && edge.to === toId)) {
+        return;
       }
       
-      // Remove node from data
-      delete nodes[selectedNode];
-      
-      // Remove any edges connected to this node
-      edges = edges.filter(edge => edge.from !== selectedNode && edge.to !== selectedNode);
-      
-      // Redraw edges
-      redrawEdges();
-      
-      // Clear selection
-      clearSelection();
+      edges.push({ from: fromId, to: toId });
+      drawEdges();
     }
     
-    // Redraw all edges
-    function redrawEdges() {
+    // Draw all edges
+    function drawEdges() {
       edgesSVG.innerHTML = '';
       
       edges.forEach(edge => {
@@ -1680,55 +1258,104 @@
           line.setAttribute('y1', fromNode.y + 20);
           line.setAttribute('x2', toNode.x + 65);
           line.setAttribute('y2', toNode.y + 20);
-          
-          // Highlight if connected to selected node
-          if (selectedNode && (edge.from === selectedNode || edge.to === selectedNode)) {
-            line.classList.add('highlight');
-          }
+          line.setAttribute('data-from', fromNode.id);
+          line.setAttribute('data-to', toNode.id);
           
           edgesSVG.appendChild(line);
         }
       });
     }
     
+    // Select a node
+    function selectNode(nodeId) {
+      clearSelection();
+      
+      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+      if (nodeElement) {
+        nodeElement.classList.add('selected');
+        selectedNode = nodes[nodeId];
+        
+        // Highlight connected edges
+        document.querySelectorAll(`line[data-from="${nodeId}"], line[data-to="${nodeId}"]`).forEach(line => {
+          line.classList.add('highlight');
+        });
+      }
+    }
+    
+    // Clear selection
+    function clearSelection() {
+      document.querySelectorAll('.node.selected').forEach(node => {
+        node.classList.remove('selected');
+      });
+      
+      document.querySelectorAll('.connection.highlight').forEach(line => {
+        line.classList.remove('highlight');
+      });
+      
+      selectedNode = null;
+      connectFrom = null;
+    }
+    
+    // Delete selected node or edge
+    function deleteSelected() {
+      if (selectedNode) {
+        // Delete the node and its connections
+        const nodeId = selectedNode.id;
+        
+        // Remove node from DOM
+        const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+        if (nodeElement) {
+          nodeElement.remove();
+        }
+        
+        // Remove node from data
+        delete nodes[nodeId];
+        
+        // Remove any edges connected to this node
+        edges = edges.filter(edge => edge.from !== nodeId && edge.to !== nodeId);
+        
+        // Redraw edges
+        drawEdges();
+        
+        // Clear selection
+        clearSelection();
+      }
+    }
+    
     // Show edit panel for a node
     function showEditPanel(node) {
       const editPanel = document.getElementById('edit-panel');
+      const editTextarea = document.getElementById('edit-textarea');
       const overlay = document.getElementById('overlay');
-      const textarea = document.getElementById('edit-textarea');
       
-      textarea.value = node.text;
+      editTextarea.value = node.text;
       editPanel.style.display = 'block';
       overlay.style.display = 'block';
       
-      // Focus and select text
-      setTimeout(() => {
-        textarea.focus();
-        textarea.select();
-      }, 10);
+      // Store which node we're editing
+      editPanel.dataset.editingNode = node.id;
     }
     
     // Close edit panel
     function closeEditPanel() {
       document.getElementById('edit-panel').style.display = 'none';
       document.getElementById('overlay').style.display = 'none';
-      editMode = false;
-      document.getElementById('editBtn').classList.remove('active');
     }
     
-    // Save edit panel changes
+    // Save changes from edit panel
     function saveEditPanel() {
-      if (!selectedNode) return;
+      const editPanel = document.getElementById('edit-panel');
+      const editTextarea = document.getElementById('edit-textarea');
+      const nodeId = editPanel.dataset.editingNode;
       
-      const textarea = document.getElementById('edit-textarea');
-      const newText = textarea.value.trim();
-      
-      if (newText) {
-        nodes[selectedNode].text = newText;
+      if (nodeId && nodes[nodeId]) {
+        // Update the node text in the data model
+        nodes[nodeId].text = editTextarea.value;
         
-        const nodeElement = document.querySelector(`.node[data-id="${selectedNode}"] .node-content`);
+        // Update the node text in the DOM
+        const nodeElement = document.querySelector(`.node[data-id="${nodeId}"] .node-content`);
         if (nodeElement) {
-          nodeElement.textContent = newText;
+          nodeElement.textContent = editTextarea.value;
         }
       }
       
@@ -1736,331 +1363,60 @@
     }
     
     // Show color menu
-    function showColorMenu(e) {
-      if (!selectedNode) {
-        alert('Please select a node first');
-        return;
-      }
-      
-      hideContextMenu(); // Hide any existing context menu
-      
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      
-      const colorPicker = document.createElement('div');
-      colorPicker.className = 'color-picker';
+    function showColorMenu() {
+      if (!selectedNode) return;
       
       const colors = [
-        '#2ecc71', '#3498db', '#9b59b6', '#e74c3c', '#f1c40f',
-        '#1abc9c', '#34495e', '#e67e22', '#7f8c8d', '#ff6b81'
+        '#2c3e50', '#34495e', '#16a085', '#27ae60', '#2980b9',
+        '#8e44ad', '#2c3e50', '#f39c12', '#d35400', '#c0392b',
+        '#7f8c8d', '#1abc9c', '#3498db', '#9b59b6', '#e74c3c'
       ];
+      
+      // Create color picker menu
+      hideContextMenu();
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      menu.innerHTML = '<div style="padding: 10px; font-weight: bold;">Choose Color</div>';
+      
+      const colorGrid = document.createElement('div');
+      colorGrid.className = 'color-picker';
       
       colors.forEach(color => {
         const colorOption = document.createElement('div');
         colorOption.className = 'color-option';
         colorOption.style.backgroundColor = color;
         colorOption.onclick = () => {
-          changeNodeColor(selectedNode, color);
-          menu.remove();
+          changeNodeColor(selectedNode.id, color);
+          hideContextMenu();
+          saveToFirebase(); // Auto-save after color change
         };
-        colorPicker.appendChild(colorOption);
+        colorGrid.appendChild(colorOption);
       });
       
-      menu.appendChild(colorPicker);
+      menu.appendChild(colorGrid);
       document.body.appendChild(menu);
       
-      // Close menu when clicking elsewhere
-      setTimeout(() => {
-        document.addEventListener('click', function closeMenu() {
-          menu.remove();
-          document.removeEventListener('click', closeMenu);
-        });
-      }, 10);
+      // Position menu near selected node
+      const nodeElement = document.querySelector(`.node[data-id="${selectedNode.id}"]`);
+      if (nodeElement) {
+        const rect = nodeElement.getBoundingClientRect();
+        menu.style.left = rect.right + 10 + 'px';
+        menu.style.top = rect.top + 'px';
+      }
     }
     
     // Change node color
     function changeNodeColor(nodeId, color) {
-      nodes[nodeId].color = color;
-      
-      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
-      if (nodeElement) {
-        nodeElement.style.backgroundColor = color;
-      }
-      
-      saveToFirebase(); // Auto-save after color change
-    }
-    
-    // Handle context menu
-    function handleContextMenu(e) {
-      e.preventDefault();
-      
-      const node = e.target.closest('.node');
-      if (node) {
-        const nodeId = node.dataset.id;
-        selectNode(nodeId);
-        showContextMenu(e, nodeId);
-      } else {
-        showStageContextMenu(e);
-      }
-    }
-    
-    // Show context menu for a node
-    function showContextMenu(e, nodeId) {
-      hideContextMenu(); // Hide any existing context menu
-      
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      
-      const menuItems = [
-        { text: 'Edit', action: () => showEditPanel(nodes[nodeId]) },
-        { text: 'Change Color', action: () => showColorMenu(e) },
-        { text: 'Delete', action: () => { deleteSelected(); saveToFirebase(); } },
-        { text: 'Add Child Node', action: () => {
-          const node = nodes[nodeId];
-          const childId = addNode(node.x + 200, node.y, 'Child Node');
-          edges.push({ from: nodeId, to: childId });
-          redrawEdges();
-          saveToFirebase();
-        }}
-      ];
-      
-      menuItems.forEach(item => {
-        const menuItem = document.createElement('div');
-        menuItem.className = 'context-menu-item';
-        menuItem.textContent = item.text;
-        menuItem.onclick = () => {
-          item.action();
-          menu.remove();
-        };
-        menu.appendChild(menuItem);
-      });
-      
-      document.body.appendChild(menu);
-      
-      // Close menu when clicking elsewhere
-      setTimeout(() => {
-        document.addEventListener('click', function closeMenu() {
-          menu.remove();
-          document.removeEventListener('click', closeMenu);
-        });
-      }, 10);
-    }
-    
-    // Show context menu for the stage
-    function showStageContextMenu(e) {
-      hideContextMenu(); // Hide any existing context menu
-      
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      
-      const menuItem = document.createElement('div');
-      menuItem.className = 'context-menu-item';
-      menuItem.textContent = 'Add Node Here';
-      
-      // Calculate position considering scroll and zoom
-      const rect = world.getBoundingClientRect();
-      const x = (e.clientX - rect.left) / scale;
-      const y = (e.clientY - rect.top) / scale;
-      
-      menuItem.onclick = () => {
-        addNode(x, y, 'New Node');
-        saveToFirebase();
-        menu.remove();
-      };
-      
-      menu.appendChild(menuItem);
-      document.body.appendChild(menu);
-      
-      // Close menu when clicking elsewhere
-      setTimeout(() => {
-        document.addEventListener('click', function closeMenu() {
-          menu.remove();
-          document.removeEventListener('click', closeMenu);
-        });
-      }, 10);
-    }
-    
-    // Hide context menu
-    function hideContextMenu() {
-      document.querySelectorAll('.context-menu').forEach(menu => menu.remove());
-    }
-    
-    // Handle wheel event for zooming
-    function handleWheel(e) {
-      e.preventDefault();
-      
-      // Determine zoom direction
-      const delta = e.deltaY < 0 ? 0.1 : -0.1;
-      adjustZoom(delta, e.clientX, e.clientY);
-    }
-    
-    // Adjust zoom level
-    function adjustZoom(delta, centerX, centerY) {
-      // Store current scroll position
-      const scrollLeft = world.scrollLeft;
-      const scrollTop = world.scrollTop;
-      
-      // Calculate mouse position relative to world
-      let mouseX = 0, mouseY = 0;
-      
-      if (centerX !== undefined && centerY !== undefined) {
-        const rect = world.getBoundingClientRect();
-        mouseX = (centerX - rect.left + scrollLeft) / scale;
-        mouseY = (centerY - rect.top + scrollTop) / scale;
-      }
-      
-      // Update scale
-      scale = Math.max(0.1, Math.min(5, scale + delta));
-      world.style.transform = `scale(${scale})`;
-      
-      // Adjust scroll position to zoom toward mouse position
-      if (centerX !== undefined && centerY !== undefined) {
-        world.scrollLeft = mouseX * scale - (centerX - world.getBoundingClientRect().left);
-        world.scrollTop = mouseY * scale - (centerY - world.getBoundingClientRect().top);
-      }
-      
-      updateZoomDisplay();
-    }
-    
-    // Update zoom display
-    function updateZoomDisplay() {
-      document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
-    }
-    
-    // Start panning
-    function startPan(e) {
-      if (e.button !== 0) return; // Only left click
-      if (e.target.closest('.node')) return; // Don't pan if clicking on a node
-      
-      panning = true;
-      startX = e.clientX;
-      startY = e.clientY;
-      lastX = world.scrollLeft;
-      lastY = world.scrollTop;
-    }
-    
-    // Handle panning
-    function handlePan(e) {
-      if (!panning) return;
-      
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      
-      world.scrollLeft = lastX - dx;
-      world.scrollTop = lastY - dy;
-    }
-    
-    // Stop panning
-    function stopPan() {
-      panning = false;
-    }
-    
-    // Reset view
-    function resetView() {
-      scale = 1;
-      world.style.transform = `scale(${scale})`;
-      world.scrollLeft = 500;
-      world.scrollTop = 500;
-      updateZoomDisplay();
-    }
-    
-    // Apply layout
-    function applyLayout(type) {
-      const nodeIds = Object.keys(nodes);
-      if (nodeIds.length === 0) return;
-      
-      const rootId = nodeIds[0];
-      const centerX = 500;
-      const centerY = 500;
-      
-      if (type === 'horizontal') {
-        // Simple horizontal layout
-        let x = centerX;
-        nodeIds.forEach(id => {
-          nodes[id].x = x;
-          nodes[id].y = centerY;
-          x += 200;
-          
-          const nodeElement = document.querySelector(`.node[data-id="${id}"]`);
-          if (nodeElement) {
-            nodeElement.style.left = nodes[id].x + 'px';
-            nodeElement.style.top = nodes[id].y + 'px';
-          }
-        });
-      } else if (type === 'vertical') {
-        // Simple vertical layout
-        let y = centerY;
-        nodeIds.forEach(id => {
-          nodes[id].x = centerX;
-          nodes[id].y = y;
-          y += 100;
-          
-          const nodeElement = document.querySelector(`.node[data-id="${id}"]`);
-          if (nodeElement) {
-            nodeElement.style.left = nodes[id].x + 'px';
-            nodeElement.style.top = nodes[id].y + 'px';
-          }
-        });
-      } else if (type === 'radial') {
-        // Simple radial layout
-        const angleStep = (2 * Math.PI) / nodeIds.length;
-        const radius = 300;
-        
-        nodeIds.forEach((id, i) => {
-          const angle = i * angleStep;
-          nodes[id].x = centerX + radius * Math.cos(angle);
-          nodes[id].y = centerY + radius * Math.sin(angle);
-          
-          const nodeElement = document.querySelector(`.node[data-id="${id}"]`);
-          if (nodeElement) {
-            nodeElement.style.left = nodes[id].x + 'px';
-            nodeElement.style.top = nodes[id].y + 'px';
-          }
-        });
-      }
-      
-      redrawEdges();
-    }
-    
-    // Search nodes
-    function searchNodes(query) {
-      if (!query) {
-        // Reset all nodes
-        document.querySelectorAll('.node').forEach(node => {
-          node.style.opacity = '1';
-          node.style.border = '2px solid #666';
-        });
-        return;
-      }
-      
-      const lowercaseQuery = query.toLowerCase();
-      let foundAny = false;
-      
-      document.querySelectorAll('.node').forEach(node => {
-        const text = node.textContent.toLowerCase();
-        if (text.includes(lowercaseQuery)) {
-          node.style.opacity = '1';
-          node.style.border = '2px solid #0ff';
-          foundAny = true;
-        } else {
-          node.style.opacity = '0.3';
-          node.style.border = '2px solid #666';
+      if (nodes[nodeId]) {
+        nodes[nodeId].color = color;
+        const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+        if (nodeElement) {
+          nodeElement.style.backgroundColor = color;
         }
-      });
-      
-      if (!foundAny) {
-        // If no matches, show a message
-        console.log('No nodes found matching:', query);
       }
     }
     
-    // Export data
+    // Export data as JSON
     function exportData() {
       const data = {
         nodes: Object.values(nodes),
@@ -2079,7 +1435,7 @@
       linkElement.click();
     }
     
-    // Create import input
+    // Create import input if it doesn't exist
     function createImportInput() {
       const input = document.createElement('input');
       input.type = 'file';
@@ -2087,12 +1443,11 @@
       input.accept = '.json';
       input.style.display = 'none';
       input.onchange = handleImport;
-      
       document.body.appendChild(input);
       input.click();
     }
     
-    // Handle import
+    // Handle imported file
     function handleImport(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -2102,15 +1457,383 @@
         try {
           const data = JSON.parse(e.target.result);
           loadData(data);
-          saveToFirebase(); // Save imported data to cloud
+          saveToFirebase(); // Save imported data to Firebase
         } catch (error) {
-          alert('Error importing file: ' + error.message);
+          alert('Error parsing JSON file: ' + error.message);
         }
       };
       reader.readAsText(file);
+    }
+    
+    // Apply layout to nodes
+    function applyLayout(type) {
+      const centerX = 500;
+      const centerY = 500;
+      const nodeValues = Object.values(nodes);
       
-      // Clean up
-      e.target.remove();
+      if (type === 'horizontal') {
+        // Simple horizontal layout with root in center
+        const root = nodeValues[0] || addNode(centerX, centerY, 'Main Topic');
+        root.x = centerX;
+        root.y = centerY;
+        
+        let xOffset = 200;
+        nodeValues.forEach((node, i) => {
+          if (node.id !== root.id) {
+            node.x = centerX + xOffset;
+            node.y = centerY + (i % 2 === 0 ? -100 : 100);
+            xOffset += 200;
+          }
+        });
+      } else if (type === 'vertical') {
+        // Simple vertical layout with root in center
+        const root = nodeValues[0] || addNode(centerX, centerY, 'Main Topic');
+        root.x = centerX;
+        root.y = centerY;
+        
+        let yOffset = 100;
+        nodeValues.forEach((node, i) => {
+          if (node.id !== root.id) {
+            node.x = centerX + (i % 2 === 0 ? -150 : 150);
+            node.y = centerY + yOffset;
+            yOffset += 100;
+          }
+        });
+      } else if (type === 'radial') {
+        // Simple radial layout
+        const root = nodeValues[0] || addNode(centerX, centerY, 'Main Topic');
+        root.x = centerX;
+        root.y = centerY;
+        
+        const radius = 200;
+        const angleStep = (2 * Math.PI) / (nodeValues.length - 1);
+        
+        let angle = 0;
+        nodeValues.forEach(node => {
+          if (node.id !== root.id) {
+            node.x = centerX + radius * Math.cos(angle);
+            node.y = centerY + radius * Math.sin(angle);
+            angle += angleStep;
+          }
+        });
+      }
+      
+      // Update node positions in DOM
+      nodeValues.forEach(node => {
+        const nodeElement = document.querySelector(`.node[data-id="${node.id}"]`);
+        if (nodeElement) {
+          nodeElement.style.left = node.x + 'px';
+          nodeElement.style.top = node.y + 'px';
+        }
+      });
+      
+      // Redraw edges
+      drawEdges();
+    }
+    
+    // Search nodes
+    function searchNodes(query) {
+      clearSelection();
+      
+      if (!query) {
+        // Reset all nodes if search is empty
+        Object.values(nodes).forEach(node => {
+          const nodeElement = document.querySelector(`.node[data-id="${node.id}"]`);
+          if (nodeElement) {
+            nodeElement.style.opacity = 1;
+          }
+        });
+        return;
+      }
+      
+      const lowerQuery = query.toLowerCase();
+      
+      Object.values(nodes).forEach(node => {
+        const nodeElement = document.querySelector(`.node[data-id="${node.id}"]`);
+        if (nodeElement) {
+          if (node.text.toLowerCase().includes(lowerQuery)) {
+            nodeElement.style.opacity = 1;
+          } else {
+            nodeElement.style.opacity = 0.3;
+          }
+        }
+      });
+    }
+    
+    // Adjust zoom level
+    function adjustZoom(delta) {
+      scale += delta;
+      scale = Math.max(0.1, Math.min(5, scale)); // Clamp between 0.1 and 5
+      world.style.transform = `scale(${scale})`;
+      updateZoomDisplay();
+    }
+    
+    // Update zoom display
+    function updateZoomDisplay() {
+      document.getElementById('zoom-display').textContent = Math.round(scale * 100) + '%';
+    }
+    
+    // Reset view
+    function resetView() {
+      scale = 1;
+      world.style.transform = 'scale(1)';
+      world.style.left = '0px';
+      world.style.top = '0px';
+      updateZoomDisplay();
+    }
+    
+    // Handle mouse wheel for zooming
+    function handleWheel(e) {
+      e.preventDefault();
+      
+      if (e.ctrlKey) {
+        // Zoom with Ctrl+Wheel
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        adjustZoom(delta);
+      } else {
+        // Pan with regular wheel
+        world.scrollLeft -= e.deltaX;
+        world.scrollTop -= e.deltaY;
+      }
+    }
+    
+    // Start panning
+    function startPan(e) {
+      if (e.button !== 1 && !e.touches) return; // Only middle mouse button or touch
+      
+      panning = true;
+      startX = e.clientX || e.touches[0].clientX;
+      startY = e.clientY || e.touches[0].clientY;
+      lastX = world.scrollLeft;
+      lastY = world.scrollTop;
+      
+      e.preventDefault();
+    }
+    
+    // Handle panning
+    function handlePan(e) {
+      if (!panning) return;
+      
+      const x = e.clientX || (e.touches && e.touches[0].clientX);
+      const y = e.clientY || (e.touches && e.touches[0].clientY);
+      
+      if (x === undefined || y === undefined) return;
+      
+      const dx = x - startX;
+      const dy = y - startY;
+      
+      world.scrollLeft = lastX - dx;
+      world.scrollTop = lastY - dy;
+      
+      e.preventDefault();
+    }
+    
+    // Stop panning
+    function stopPan() {
+      panning = false;
+    }
+    
+    // Set up touch events
+    function setupTouchEvents() {
+      world.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          // Pinch to zoom
+          initialPinchDistance = getDistance(
+            e.touches[0].clientX, e.touches[0].clientY,
+            e.touches[1].clientX, e.touches[1].clientY
+          );
+          e.preventDefault();
+        } else if (e.touches.length === 1) {
+          startPan(e);
+        }
+      }, { passive: false });
+      
+      world.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+          // Handle pinch zoom
+          const currentDistance = getDistance(
+            e.touches[0].clientX, e.touches[0].clientY,
+            e.touches[1].clientX, e.touches[1].clientY
+          );
+          
+          if (initialPinchDistance !== null) {
+            const delta = (currentDistance - initialPinchDistance) / 100;
+            adjustZoom(delta * 0.1);
+            initialPinchDistance = currentDistance;
+          }
+          
+          e.preventDefault();
+        } else if (e.touches.length === 1 && panning) {
+          handlePan(e);
+        }
+      }, { passive: false });
+      
+      world.addEventListener('touchend', () => {
+        initialPinchDistance = null;
+        stopPan();
+      });
+    }
+    
+    // Calculate distance between two points
+    function getDistance(x1, y1, x2, y2) {
+      return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+    
+    // Handle node mouse down for dragging
+    function handleNodeMouseDown(e) {
+      if (e.button !== 0) return; // Only left mouse button
+      
+      const nodeElement = e.target.closest('.node');
+      if (!nodeElement) return;
+      
+      const nodeId = nodeElement.dataset.id;
+      const node = nodes[nodeId];
+      if (!node) return;
+      
+      // Select the node
+      selectNode(nodeId);
+      
+      // Start dragging
+      isDraggingNode = true;
+      const offsetX = e.clientX - node.x;
+      const offsetY = e.clientY - node.y;
+      
+      function handleMouseMove(e) {
+        node.x = e.clientX - offsetX;
+        node.y = e.clientY - offsetY;
+        nodeElement.style.left = node.x + 'px';
+        nodeElement.style.top = node.y + 'px';
+        
+        // Update edges
+        drawEdges();
+      }
+      
+      function handleMouseUp() {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        isDraggingNode = false;
+      }
+      
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      
+      e.preventDefault();
+    }
+    
+    // Handle node touch start for dragging on mobile
+    function handleNodeTouchStart(e) {
+      if (e.touches.length !== 1) return;
+      
+      const nodeElement = e.target.closest('.node');
+      if (!nodeElement) return;
+      
+      const nodeId = nodeElement.dataset.id;
+      const node = nodes[nodeId];
+      if (!node) return;
+      
+      // Select the node
+      selectNode(nodeId);
+      
+      // Start dragging
+      isDraggingNode = true;
+      const touch = e.touches[0];
+      initialTouchPositions = {
+        touchX: touch.clientX,
+        touchY: touch.clientY,
+        nodeX: node.x,
+        nodeY: node.y
+      };
+      
+      e.preventDefault();
+    }
+    
+    // Handle node touch move for dragging on mobile
+    function handleNodeTouchMove(e) {
+      if (!initialTouchPositions || e.touches.length !== 1) return;
+      
+      const nodeElement = e.target.closest('.node');
+      if (!nodeElement) return;
+      
+      const nodeId = nodeElement.dataset.id;
+      const node = nodes[nodeId];
+      if (!node) return;
+      
+      const touch = e.touches[0];
+      const dx = touch.clientX - initialTouchPositions.touchX;
+      const dy = touch.clientY - initialTouchPositions.touchY;
+      
+      node.x = initialTouchPositions.nodeX + dx;
+      node.y = initialTouchPositions.nodeY + dy;
+      nodeElement.style.left = node.x + 'px';
+      nodeElement.style.top = node.y + 'px';
+      
+      // Update edges
+      drawEdges();
+      
+      e.preventDefault();
+    }
+    
+    // Handle node touch end for dragging on mobile
+    function handleNodeTouchEnd() {
+      initialTouchPositions = null;
+      isDraggingNode = false;
+    }
+    
+    // Handle context menu
+    function handleContextMenu(e) {
+      e.preventDefault();
+      
+      const node = e.target.closest('.node');
+      if (node) {
+        const nodeId = node.dataset.id;
+        selectNode(nodeId);
+        showContextMenu(e.clientX, e.clientY, nodes[nodeId]);
+      } else {
+        hideContextMenu();
+      }
+    }
+    
+    // Show context menu
+    function showContextMenu(x, y, node) {
+      hideContextMenu();
+      
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      
+      const menuItems = [
+        { text: 'Edit', action: () => showEditPanel(node) },
+        { text: 'Change Color', action: () => showColorMenu() },
+        { text: 'Delete', action: () => { deleteSelected(); saveToFirebase(); } },
+        { text: 'Add Child Node', action: () => {
+          const childX = node.x + 200;
+          const childY = node.y;
+          const childNode = addNode(childX, childY, 'Child Node');
+          addEdge(node.id, childNode.id);
+          saveToFirebase(); // Auto-save after adding child
+        }},
+      ];
+      
+      menuItems.forEach(item => {
+        const menuItem = document.createElement('div');
+        menuItem.className = 'context-menu-item';
+        menuItem.textContent = item.text;
+        menuItem.onclick = item.action;
+        menu.appendChild(menuItem);
+      });
+      
+      document.body.appendChild(menu);
+      
+      // Position menu
+      menu.style.left = x + 'px';
+      menu.style.top = y + 'px';
+    }
+    
+    // Hide context menu
+    function hideContextMenu() {
+      const menu = document.querySelector('.context-menu');
+      if (menu) {
+        menu.remove();
+      }
     }
     
     // Initialize the app
