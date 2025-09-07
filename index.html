@@ -72,6 +72,7 @@
       width: 100000000000000000000000000000000000000000000000000000000000000000000px; 
       height: 100000000000000000000000000000000000000000000000000000000000000000000px; 
       transform-origin: 0 0;
+      transition: transform 0.1s ease;
     }
     .node { 
       position: absolute; 
@@ -555,6 +556,7 @@
     
     // Main application variables
     const world = document.getElementById('world');
+    const stage = document.getElementById('stage');
     const edgesSVG = document.getElementById('edges');
     let nodes = {};
     let edges = [];
@@ -578,6 +580,10 @@
     // New variables for fixing node dragging
     let isDraggingNode = false;
     let initialTouchPositions = null;
+    
+    // Variables for zooming from pointer position
+    let zoomCenterX = 0;
+    let zoomCenterY = 0;
     
     // Initialize the application
     function init() {
@@ -802,16 +808,16 @@
       });
       
       // Panning and zooming
-      world.addEventListener('wheel', handleWheel, { passive: false });
-      world.addEventListener('mousedown', startPan);
+      stage.addEventListener('wheel', handleWheel, { passive: false });
+      stage.addEventListener('mousedown', startPan);
       document.addEventListener('mousemove', handlePan);
       document.addEventListener('mouseup', stopPan);
       
-      // Touch events for mobile
+      // Touch events for mobile - UPDATED
       setupTouchEvents();
       
       // Context menu
-      world.addEventListener('contextmenu', handleContextMenu);
+      stage.addEventListener('contextmenu', handleContextMenu);
       
       // Click outside to clear selection
       document.addEventListener('click', (e) => {
@@ -824,7 +830,7 @@
       });
       
       // Double click to edit
-      world.addEventListener('dblclick', (e) => {
+      stage.addEventListener('dblclick', (e) => {
         const node = e.target.closest('.node');
         if (node) {
           const nodeId = node.dataset.id;
@@ -1043,7 +1049,7 @@
         });
     }
     
-    // Rename a mind map
+    // Rename a mind map - FIXED: Update local data correctly
     function renameMap(mapId) {
       const newName = prompt('Enter a new name for this mind map:', mindMaps[mapId].name || mapId);
       
@@ -1052,8 +1058,12 @@
         
         database.ref(`${userPath}/${mapId}/name`).set(newName.trim())
           .then(() => {
-            // Update local data
-            mindMaps[mapId].name = newName.trim();
+            // Update local data correctly
+            if (mindMaps[mapId]) {
+              mindMaps[mapId].name = newName.trim();
+            } else {
+              mindMaps[mapId] = { name: newName.trim() };
+            }
             renderMapsList();
           })
           .catch((error) => {
@@ -1156,7 +1166,7 @@
       // Mouse events
       nodeElement.addEventListener('mousedown', handleNodeMouseDown);
       
-      // Touch events
+      // Touch events - UPDATED
       nodeElement.addEventListener('touchstart', handleNodeTouchStart, { passive: false });
       nodeElement.addEventListener('touchmove', handleNodeTouchMove, { passive: false });
       nodeElement.addEventListener('touchend', handleNodeTouchEnd);
@@ -1177,6 +1187,7 @@
           if (!connectFrom) {
             connectFrom = nodeId;
             nodeElement.classList.add('selected');
+            saveToFirebase(); // Auto-save after selecting connection start
           } else if (connectFrom !== nodeId) {
             addEdge(connectFrom, nodeId);
             connectMode = false;
@@ -1560,11 +1571,35 @@
       });
     }
     
-    // Adjust zoom level
-    function adjustZoom(delta) {
-      scale += delta;
-      scale = Math.max(0.1, Math.min(5, scale)); // Clamp between 0.1 and 5
+    // Adjust zoom level with center point
+    function adjustZoom(delta, centerX, centerY) {
+      // If center coordinates are not provided, use the center of the stage
+      const stageRect = stage.getBoundingClientRect();
+      if (centerX === undefined) centerX = stageRect.width / 2;
+      if (centerY === undefined) centerY = stageRect.height / 2;
+      
+      // Calculate the current scroll position
+      const scrollX = stage.scrollLeft;
+      const scrollY = stage.scrollTop;
+      
+      // Calculate the cursor position relative to the world
+      const cursorX = scrollX + centerX;
+      const cursorY = scrollY + centerY;
+      
+      // Calculate the new scale
+      const newScale = Math.max(0.1, Math.min(5, scale + delta));
+      
+      // Calculate the zoom factor
+      const zoomFactor = newScale / scale;
+      
+      // Adjust the scroll position to zoom towards the cursor
+      stage.scrollLeft = cursorX * zoomFactor - centerX;
+      stage.scrollTop = cursorY * zoomFactor - centerY;
+      
+      // Apply the new scale
+      scale = newScale;
       world.style.transform = `scale(${scale})`;
+      
       updateZoomDisplay();
     }
     
@@ -1577,8 +1612,8 @@
     function resetView() {
       scale = 1;
       world.style.transform = 'scale(1)';
-      world.style.left = '0px';
-      world.style.top = '0px';
+      stage.scrollLeft = 0;
+      stage.scrollTop = 0;
       updateZoomDisplay();
     }
     
@@ -1589,11 +1624,11 @@
       if (e.ctrlKey) {
         // Zoom with Ctrl+Wheel
         const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        adjustZoom(delta);
+        adjustZoom(delta, e.clientX, e.clientY);
       } else {
         // Pan with regular wheel
-        world.scrollLeft -= e.deltaX;
-        world.scrollTop -= e.deltaY;
+        stage.scrollLeft += e.deltaX;
+        stage.scrollTop += e.deltaY;
       }
     }
     
@@ -1604,8 +1639,8 @@
       panning = true;
       startX = e.clientX || e.touches[0].clientX;
       startY = e.clientY || e.touches[0].clientY;
-      lastX = world.scrollLeft;
-      lastY = world.scrollTop;
+      lastX = stage.scrollLeft;
+      lastY = stage.scrollTop;
       
       e.preventDefault();
     }
@@ -1622,8 +1657,8 @@
       const dx = x - startX;
       const dy = y - startY;
       
-      world.scrollLeft = lastX - dx;
-      world.scrollTop = lastY - dy;
+      stage.scrollLeft = lastX - dx;
+      stage.scrollTop = lastY - dy;
       
       e.preventDefault();
     }
@@ -1633,22 +1668,41 @@
       panning = false;
     }
     
-    // Set up touch events
+    // Set up touch events - UPDATED
     function setupTouchEvents() {
-      world.addEventListener('touchstart', (e) => {
+      // Use a single touch event handler for the stage to avoid conflicts
+      const stage = document.getElementById('stage');
+      
+      stage.addEventListener('touchstart', (e) => {
+        // If touching a node, let the node handle it
+        if (e.target.closest('.node')) {
+          return;
+        }
+        
         if (e.touches.length === 2) {
           // Pinch to zoom
           initialPinchDistance = getDistance(
             e.touches[0].clientX, e.touches[0].clientY,
             e.touches[1].clientX, e.touches[1].clientY
           );
+          
+          // Calculate the center point between the two touches
+          zoomCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          zoomCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          
           e.preventDefault();
         } else if (e.touches.length === 1) {
+          // Start panning
           startPan(e);
         }
       }, { passive: false });
       
-      world.addEventListener('touchmove', (e) => {
+      stage.addEventListener('touchmove', (e) => {
+        // If touching a node, let the node handle it
+        if (e.target.closest('.node')) {
+          return;
+        }
+        
         if (e.touches.length === 2) {
           // Handle pinch zoom
           const currentDistance = getDistance(
@@ -1658,7 +1712,7 @@
           
           if (initialPinchDistance !== null) {
             const delta = (currentDistance - initialPinchDistance) / 100;
-            adjustZoom(delta * 0.1);
+            adjustZoom(delta * 0.1, zoomCenterX, zoomCenterY);
             initialPinchDistance = currentDistance;
           }
           
@@ -1668,7 +1722,22 @@
         }
       }, { passive: false });
       
-      world.addEventListener('touchend', () => {
+      stage.addEventListener('touchend', (e) => {
+        // If touching a node, let the node handle it
+        if (e.target.closest('.node')) {
+          return;
+        }
+        
+        initialPinchDistance = null;
+        stopPan();
+      });
+      
+      stage.addEventListener('touchcancel', (e) => {
+        // If touching a node, let the node handle it
+        if (e.target.closest('.node')) {
+          return;
+        }
+        
         initialPinchDistance = null;
         stopPan();
       });
@@ -1720,7 +1789,7 @@
       e.preventDefault();
     }
     
-    // Handle node touch start for dragging on mobile
+    // Handle node touch start for dragging on mobile - UPDATED
     function handleNodeTouchStart(e) {
       if (e.touches.length !== 1) return;
       
@@ -1747,7 +1816,7 @@
       e.preventDefault();
     }
     
-    // Handle node touch move for dragging on mobile
+    // Handle node touch move for dragging on mobile - UPDATED
     function handleNodeTouchMove(e) {
       if (!initialTouchPositions || e.touches.length !== 1) return;
       
@@ -1773,10 +1842,14 @@
       e.preventDefault();
     }
     
-    // Handle node touch end for dragging on mobile
-    function handleNodeTouchEnd() {
+    // Handle node touch end for dragging on mobile - UPDATED
+    function handleNodeTouchEnd(e) {
+      // Only save if we were actually dragging a node
+      if (isDraggingNode) {
+        saveToFirebase();
+        isDraggingNode = false;
+      }
       initialTouchPositions = null;
-      isDraggingNode = false;
     }
     
     // Handle context menu
@@ -1793,7 +1866,7 @@
       }
     }
     
-    // Show context menu
+    // Show context menu - FIXED: Hide menu after selecting an option
     function showContextMenu(x, y, node) {
       hideContextMenu();
       
@@ -1817,7 +1890,10 @@
         const menuItem = document.createElement('div');
         menuItem.className = 'context-menu-item';
         menuItem.textContent = item.text;
-        menuItem.onclick = item.action;
+        menuItem.onclick = () => {
+          item.action();
+          hideContextMenu(); // Hide menu after selecting an option
+        };
         menu.appendChild(menuItem);
       });
       
