@@ -397,6 +397,36 @@
       margin-top: 10px;
     }
     
+    /* Expand/Collapse Button Styles */
+    .expand-toggle {
+      position: absolute;
+      right: 8px;
+      top: 8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #555;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .expand-toggle:hover {
+      background: #777;
+    }
+    .node.collapsed > .expand-toggle::after {
+      content: '+';
+    }
+    .node:not(.collapsed) > .expand-toggle::after {
+      content: '-';
+    }
+    .node.collapsed .node-content {
+      opacity: 0.8;
+    }
+    
     /* Mobile-specific styles */
     @media (max-width: 768px) {
       #toolbar {
@@ -440,6 +470,13 @@
       }
       .map-item-actions {
         align-self: flex-end;
+      }
+      .expand-toggle {
+        width: 14px;
+        height: 14px;
+        font-size: 10px;
+        right: 6px;
+        top: 6px;
       }
     }
     
@@ -516,6 +553,7 @@
     <button id="saveBtn">Save to Cloud</button>
     <button id="loadBtn">Load from Cloud</button>
     <button id="mapsBtn">Manage Maps</button>
+    <button id="expandCollapseBtn">Expand/Collapse</button>
     <button id="logoutBtn" style="display:none;">Logout</button>
   </div>
   <div id="stage">
@@ -790,6 +828,9 @@
       // Map management button
       document.getElementById('mapsBtn').onclick = showMapManager;
       
+      // Expand/Collapse button
+      document.getElementById('expandCollapseBtn').onclick = toggleExpandCollapse;
+      
       // Edit panel buttons
       document.getElementById('edit-panel-save').onclick = () => {
         saveEditPanel();
@@ -823,7 +864,8 @@
       document.addEventListener('click', (e) => {
         if (!e.target.closest('.node') && !e.target.closest('.context-menu') && 
             !e.target.closest('.node-edit-input') && !e.target.closest('#edit-panel') &&
-            !e.target.closest('#map-manager-container')) {
+            !e.target.closest('#map-manager-container') && !e.target.closest('.expand-toggle') &&
+            !e.target.closest('#toolbar')) { // FIX: Added toolbar exclusion to prevent color menu from closing
           clearSelection();
           hideContextMenu();
         }
@@ -832,7 +874,7 @@
       // Double click to edit
       stage.addEventListener('dblclick', (e) => {
         const node = e.target.closest('.node');
-        if (node) {
+        if (node && !e.target.closest('.expand-toggle')) {
           const nodeId = node.dataset.id;
           selectNode(nodeId);
           showEditPanel(nodes[nodeId]);
@@ -1056,15 +1098,30 @@
       if (newName && newName.trim()) {
         const userPath = currentUser.uid === 'guest' ? 'guest_maps' : `users/${currentUser.uid}/maps`;
         
+        // Update the name in Firebase
         database.ref(`${userPath}/${mapId}/name`).set(newName.trim())
           .then(() => {
-            // Update local data correctly
+            // Update the local data with the new name
             if (mindMaps[mapId]) {
               mindMaps[mapId].name = newName.trim();
             } else {
-              mindMaps[mapId] = { name: newName.trim() };
+              // If for some reason the map isn't in our local data, create an entry
+              mindMaps[mapId] = { 
+                name: newName.trim(),
+                lastUpdated: Date.now()
+              };
             }
+            
+            // Also update the current map name if we're renaming the current map
+            if (currentMapId === mapId) {
+              // The name will be updated on next load or save
+            }
+            
+            // Refresh the map list
             renderMapsList();
+            
+            // Save the updated map list to ensure consistency
+            saveToFirebase();
           })
           .catch((error) => {
             console.error('Error renaming map:', error);
@@ -1148,6 +1205,15 @@
       nodeElement.style.backgroundColor = node.color || '#333';
       nodeElement.style.borderColor = node.borderColor || '#666';
       
+      // Add expand/collapse toggle button
+      const expandToggle = document.createElement('div');
+      expandToggle.className = 'expand-toggle';
+      expandToggle.onclick = (e) => {
+        e.stopPropagation();
+        toggleNode(node.id);
+      };
+      nodeElement.appendChild(expandToggle);
+      
       const contentDiv = document.createElement('div');
       contentDiv.className = 'node-content';
       contentDiv.textContent = node.text;
@@ -1178,6 +1244,11 @@
         
         if (isLongPress) {
           isLongPress = false;
+          return;
+        }
+        
+        // Don't process clicks on the expand toggle button
+        if (e.target.closest('.expand-toggle')) {
           return;
         }
         
@@ -1234,7 +1305,8 @@
         y: y,
         text: text || 'New Node',
         color: '#333',
-        borderColor: '#666'
+        borderColor: '#666',
+        expanded: true // Default to expanded
       };
       
       nodes[id] = node;
@@ -1263,6 +1335,11 @@
         const toNode = nodes[edge.to];
         
         if (fromNode && toNode) {
+          // Check if either node is collapsed and should hide connections
+          if (isNodeHiddenByCollapse(fromNode.id) || isNodeHiddenByCollapse(toNode.id)) {
+            return;
+          }
+          
           const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
           line.setAttribute('class', 'connection');
           line.setAttribute('x1', fromNode.x + 65);
@@ -1373,9 +1450,12 @@
       closeEditPanel();
     }
     
-    // Show color menu
+    // Show color menu - FIXED: Added z-index and fixed positioning
     function showColorMenu() {
-      if (!selectedNode) return;
+      if (!selectedNode) {
+        alert('Please select a node first');
+        return;
+      }
       
       const colors = [
         '#2c3e50', '#34495e', '#16a085', '#27ae60', '#2980b9',
@@ -1386,7 +1466,8 @@
       // Create color picker menu
       hideContextMenu();
       const menu = document.createElement('div');
-      menu.className = 'context-menu';
+      menu.className = 'context-menu color-menu';
+      menu.style.zIndex = '1000'; // Ensure it appears above other elements
       menu.innerHTML = '<div style="padding: 10px; font-weight: bold;">Choose Color</div>';
       
       const colorGrid = document.createElement('div');
@@ -1411,8 +1492,17 @@
       const nodeElement = document.querySelector(`.node[data-id="${selectedNode.id}"]`);
       if (nodeElement) {
         const rect = nodeElement.getBoundingClientRect();
-        menu.style.left = rect.right + 10 + 'px';
-        menu.style.top = rect.top + 'px';
+        menu.style.left = (rect.right + 10) + 'px';
+        menu.style.top = (rect.top - 10) + 'px';
+        
+        // Ensure the menu stays within the viewport
+        const menuRect = menu.getBoundingClientRect();
+        if (menuRect.right > window.innerWidth) {
+          menu.style.left = (rect.left - menuRect.width - 10) + 'px';
+        }
+        if (menuRect.bottom > window.innerHeight) {
+          menu.style.top = (window.innerHeight - menuRect.height - 10) + 'px';
+        }
       }
     }
     
@@ -1884,6 +1974,9 @@
           addEdge(node.id, childNode.id);
           saveToFirebase(); // Auto-save after adding child
         }},
+        { text: nodes[node.id].expanded ? 'Collapse' : 'Expand', action: () => {
+          toggleNode(node.id);
+        }}
       ];
       
       menuItems.forEach(item => {
@@ -1910,6 +2003,121 @@
       if (menu) {
         menu.remove();
       }
+    }
+    
+    // EXPAND/COLLAPSE FUNCTIONALITY
+    
+    // Toggle expand/collapse for a specific node
+    function toggleNode(nodeId) {
+      if (!nodes[nodeId]) return;
+      
+      // Toggle the expanded state
+      nodes[nodeId].expanded = !nodes[nodeId].expanded;
+      
+      // Update the UI
+      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+      if (nodeElement) {
+        if (nodes[nodeId].expanded) {
+          nodeElement.classList.remove('collapsed');
+        } else {
+          nodeElement.classList.add('collapsed');
+        }
+      }
+      
+      // Update visibility of child nodes and edges
+      updateNodeVisibility(nodeId);
+      
+      // Save to Firebase
+      saveToFirebase();
+    }
+    
+    // Check if a node is hidden due to a parent being collapsed
+    function isNodeHiddenByCollapse(nodeId) {
+      let currentId = nodeId;
+      
+      // Traverse up the hierarchy to see if any parent is collapsed
+      while (currentId) {
+        const node = nodes[currentId];
+        if (!node || !node.expanded) {
+          return true;
+        }
+        
+        // Find the parent of this node (if any)
+        const parentEdge = edges.find(edge => edge.to == currentId);
+        if (!parentEdge) {
+          break; // No parent found, we've reached the root
+        }
+        
+        currentId = parentEdge.from;
+      }
+      
+      return false;
+    }
+    
+    // Update visibility for a node and its children
+    function updateNodeVisibility(nodeId) {
+      const node = nodes[nodeId];
+      if (!node) return;
+      
+      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+      if (!nodeElement) return;
+      
+      // Show or hide based on expanded state
+      if (node.expanded) {
+        nodeElement.classList.remove('collapsed');
+      } else {
+        nodeElement.classList.add('collapsed');
+      }
+      
+      // Get all direct children of this node
+      const childEdges = edges.filter(edge => edge.from == nodeId);
+      
+      for (const edge of childEdges) {
+        const childId = edge.to;
+        const childNode = nodes[childId];
+        if (childNode) {
+          const childElement = document.querySelector(`.node[data-id="${childId}"]`);
+          if (childElement) {
+            // If parent is collapsed, hide the child regardless of its own state
+            if (!node.expanded || isNodeHiddenByCollapse(nodeId)) {
+              childElement.style.display = 'none';
+            } else {
+              childElement.style.display = 'block';
+              // Recursively update children
+              updateNodeVisibility(childId);
+            }
+          }
+        }
+      }
+      
+      // Redraw edges to reflect visibility changes
+      drawEdges();
+    }
+    
+    // Toggle expand/collapse for all nodes
+    function toggleExpandCollapse() {
+      const hasCollapsedNodes = Object.values(nodes).some(node => !node.expanded);
+      
+      // Toggle all nodes to the opposite state
+      Object.values(nodes).forEach(node => {
+        node.expanded = hasCollapsedNodes;
+        const nodeElement = document.querySelector(`.node[data-id="${node.id}"]`);
+        if (nodeElement) {
+          if (node.expanded) {
+            nodeElement.classList.remove('collapsed');
+          } else {
+            nodeElement.classList.add('collapsed');
+          }
+        }
+      });
+      
+      // Update visibility for all nodes
+      Object.keys(nodes).forEach(nodeId => {
+        updateNodeVisibility(nodeId);
+      });
+      
+      // Save to Firebase
+      saveToFirebase();
     }
     
     // Initialize the app
