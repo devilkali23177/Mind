@@ -3,24 +3,165 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Advanced Mind Map with Firebase Integration</title>
+  <title>Advanced Mind Map with Image Support</title>
   <!-- Add Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
   <style>
-    /* Your existing CSS styles remain unchanged */
+    /* CSS Variables for Theming */
+    :root {
+      /* Default Theme */
+      --bg-color: #111;
+      --toolbar-bg: #222;
+      --toolbar-button-bg: #444;
+      --toolbar-button-hover: #555;
+      --toolbar-button-active: #2a6b9b;
+      --node-bg: #333;
+      --node-border: #666;
+      --node-selected-border: #0ff;
+      --node-text: #fff;
+      --connection-stroke: #0ff;
+      --connection-highlight: #ff0;
+      --edit-panel-bg: #333;
+      --context-menu-bg: #333;
+      --zoom-display-bg: rgba(0,0,0,0.5);
+      --auth-bg: #333;
+      --manager-bg: #333;
+      --text-primary: #fff;
+      --text-secondary: #aaa;
+      --accent-color: #0ff;
+    }
+
+    /* Cyber Theme */
+    [data-theme="cyber"] {
+      --bg-color: #0a0a16;
+      --toolbar-bg: #0d0d20;
+      --toolbar-button-bg: #16163a;
+      --toolbar-button-hover: #1d1d4d;
+      --toolbar-button-active: #4a1b8c;
+      --node-bg: #12122b;
+      --node-border: #4a1b8c;
+      --node-selected-border: #00ff9d;
+      --node-text: #00ff9d;
+      --connection-stroke: #00ff9d;
+      --connection-highlight: #ff00c8;
+      --edit-panel-bg: #0d0d20;
+      --context-menu-bg: #0d0d20;
+      --zoom-display-bg: rgba(10,10,22,0.8);
+      --auth-bg: #0d0d20;
+      --manager-bg: #0d0d20;
+      --text-primary: #00ff9d;
+      --text-secondary: #806ae8;
+      --accent-color: #00ff9d;
+    }
+
+    /* Glass Theme */
+    [data-theme="glass"] {
+      --bg-color: #0e1c26;
+      --toolbar-bg: rgba(41, 91, 119, 0.6);
+      --toolbar-button-bg: rgba(87, 166, 209, 0.4);
+      --toolbar-button-hover: rgba(120, 193, 235, 0.6);
+      --toolbar-button-active: rgba(58, 156, 212, 0.8);
+      --node-bg: rgba(41, 91, 119, 0.5);
+      --node-border: rgba(135, 206, 250, 0.6);
+      --node-selected-border: #7ec8e3;
+      --node-text: #cce6f4;
+      --connection-stroke: #7ec8e3;
+      --connection-highlight: #ffcc00;
+      --edit-panel-bg: rgba(41, 91, 119, 0.8);
+      --context-menu-bg: rgba(41, 91, 119, 0.8);
+      --zoom-display-bg: rgba(14, 28, 38, 0.7);
+      --auth-bg: rgba(41, 91, 119, 0.9);
+      --manager-bg: rgba(41, 91, 119, 0.9);
+      --text-primary: #cce6f4;
+      --text-secondary: #87cefa;
+      --accent-color: #7ec8e3;
+    }
+
+    /* Sci-Fi Theme */
+    [data-theme="scifi"] {
+      --bg-color: #000814;
+      --toolbar-bg: #001d3d;
+      --toolbar-button-bg: #003566;
+      --toolbar-button-hover: #00478a;
+      --toolbar-button-active: #ffc300;
+      --node-bg: #001d3d;
+      --node-border: #ffd60a;
+      --node-selected-border: #ffc300;
+      --node-text: #ffd60a;
+      --connection-stroke: #ffc300;
+      --connection-highlight: #ff5e81;
+      --edit-panel-bg: #001d3d;
+      --context-menu-bg: #001d3d;
+      --zoom-display-bg: rgba(0,8,20,0.8);
+      --auth-bg: #001d3d;
+      --manager-bg: #001d3d;
+      --text-primary: #ffd60a;
+      --text-secondary: #8ac6f9;
+      --accent-color: #ffc300;
+    }
+
+    /* Notebook Theme */
+    [data-theme="notebook"] {
+      --bg-color: #f0e6d2;
+      --toolbar-bg: #e6d6b9;
+      --toolbar-button-bg: #d4c5a3;
+      --toolbar-button-hover: #c9b892;
+      --toolbar-button-active: #8b6f47;
+      --node-bg: #f9f3e5;
+      --node-border: #8b6f47;
+      --node-selected-border: #5e4a2a;
+      --node-text: #5e4a2a;
+      --connection-stroke: #8b6f47;
+      --connection-highlight: #c97b3a;
+      --edit-panel-bg: #e6d6b9;
+      --context-menu-bg: #e6d6b9;
+      --zoom-display-bg: rgba(240,230,210,0.7);
+      --auth-bg: #e6d6b9;
+      --manager-bg: #e6d6b9;
+      --text-primary: #5e4a2a;
+      --text-secondary: #8b6f47;
+      --accent-color: #8b6f47;
+    }
+
+    /* Water Theme */
+    [data-theme="water"] {
+      --bg-color: #003b46;
+      --toolbar-bg: #07575b;
+      --toolbar-button-bg: #66a5ad;
+      --toolbar-button-hover: #87c0c7;
+      --toolbar-button-active: #c4dfe6;
+      --node-bg: rgba(102, 165, 173, 0.7);
+      --node-border: #c4dfe6;
+      --node-selected-border: #c4dfe6;
+      --node-text: #c4dfe6;
+      --connection-stroke: #c4dfe6;
+      --connection-highlight: #ff9d00;
+      --edit-panel-bg: #07575b;
+      --context-menu-bg: #07575b;
+      --zoom-display-bg: rgba(0,59,70,0.7);
+      --auth-bg: #07575b;
+      --manager-bg: #07575b;
+      --text-primary: #c4dfe6;
+      --text-secondary: #66a5ad;
+      --accent-color: #c4dfe6;
+    }
+
+    /* Apply theme variables */
     body { 
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
       margin: 0; 
       overflow: hidden; 
-      background: #111; 
-      color: #fff; 
+      background: var(--bg-color); 
+      color: var(--text-primary); 
       touch-action: none;
+      transition: background-color 0.3s ease;
     }
     #toolbar { 
       padding: 8px; 
-      background: #222; 
+      background: var(--toolbar-bg); 
       position: fixed; 
       top: 0; 
       left: 0; 
@@ -30,31 +171,33 @@
       flex-wrap: wrap;
       gap: 6px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      transition: background-color 0.3s ease;
     }
     #toolbar button, #toolbar select, #toolbar input { 
       padding: 10px 14px;
-      background: #444; 
-      color: white;
-      border: 1px solid #666;
+      background: var(--toolbar-button-bg); 
+      color: var(--text-primary);
+      border: 1px solid var(--node-border);
       border-radius: 6px;
       cursor: pointer;
       font-size: 14px;
       min-height: 20px;
+      transition: all 0.3s ease;
     }
     #toolbar button:hover, #toolbar select:hover {
-      background: #555;
+      background: var(--toolbar-button-hover);
     }
     #toolbar button.active {
-      background: #2a6b9b;
+      background: var(--toolbar-button-active);
     }
     #toolbar input {
-      background: #333;
+      background: var(--node-bg);
       width: 100px;
       min-height: 20px;
     }
     #toolbar .separator {
       width: 1px;
-      background: #444;
+      background: var(--node-border);
       margin: 0 8px;
       height: 24px;
     }
@@ -79,23 +222,24 @@
       min-width: 130px;
       max-width: 250px;
       padding: 12px 16px;
-      background: #333; 
-      border: 2px solid #666;
+      background: var(--node-bg); 
+      border: 2px solid var(--node-border);
       border-radius: 10px;
       cursor: grab; 
       user-select: none; 
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
       overflow: hidden;
       text-overflow: ellipsis;
-      transition: transform 0.1s ease;
+      transition: transform 0.1s ease, background-color 0.3s ease, border-color 0.3s ease;
       font-size: 16px;
       touch-action: none;
+      color: var(--node-text);
     }
     .node:hover {
       transform: scale(1.02);
     }
     .node.selected { 
-      border-color: #0ff; 
+      border-color: var(--node-selected-border); 
       box-shadow: 0 0 10px rgba(0,255,255,0.5);
     }
     .node.dragging {
@@ -106,45 +250,69 @@
       min-height: 24px;
       word-wrap: break-word;
     }
+    .node-image {
+      max-width: 100%;
+      max-height: 150px;
+      margin-top: 8px;
+      border-radius: 4px;
+      display: block;
+    }
+    .node-image-placeholder {
+      width: 100%;
+      height: 60px;
+      background-color: rgba(0,0,0,0.2);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
     svg { 
       position: absolute; 
       inset: 0; 
       pointer-events: none; 
     }
     line.connection {
-      stroke: #0ff;
+      stroke: var(--connection-stroke);
       stroke-width: 2;
     }
     line.connection.highlight {
-      stroke: #ff0;
+      stroke: var(--connection-highlight);
       stroke-width: 3;
     }
     #zoom-display {
       position: fixed;
       bottom: 10px;
       right: 10px;
-      background: rgba(0,0,0,0.5);
+      background: var(--zoom-display-bg);
       padding: 6px 10px;
       border-radius: 4px;
       font-size: 14px;
       z-index: 5;
+      color: var(--text-primary);
+      transition: background-color 0.3s ease;
     }
     .context-menu {
       position: fixed;
-      background: #333;
-      border: 1px solid #555;
+      background: var(--context-menu-bg);
+      border: 1px solid var(--node-border);
       border-radius: 4px;
       box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
       z-index: 100;
       min-width: 150px;
+      transition: background-color 0.3s ease;
     }
     .context-menu-item {
       padding: 12px 16px;
       cursor: pointer;
       font-size: 16px;
+      color: var(--text-primary);
+      transition: background-color 0.3s ease;
     }
     .context-menu-item:hover {
-      background: #444;
+      background: var(--toolbar-button-hover);
     }
     .color-picker {
       display: flex;
@@ -158,15 +326,15 @@
       height: 28px;
       border-radius: 50%;
       cursor: pointer;
-      border: 2px solid #555;
+      border: 2px solid var(--node-border);
     }
     .node-edit-input {
       position: absolute;
-      background: #222;
-      border: 2px solid #0ff;
+      background: var(--node-bg);
+      border: 2px solid var(--node-selected-border);
       border-radius: 6px;
       padding: 8px;
-      color: white;
+      color: var(--node-text);
       font: inherit;
       z-index: 20;
       min-width: 120px;
@@ -180,28 +348,29 @@
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);
-      background: #333;
-      border: 2px solid #0ff;
+      background: var(--edit-panel-bg);
+      border: 2px solid var(--accent-color);
       border-radius: 8px;
       padding: 20px;
       z-index: 100;
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
       width: 320px;
       display: none;
+      transition: background-color 0.3s ease;
     }
     #edit-panel h3 {
       margin-top: 0;
-      color: #0ff;
-      border-bottom: 1px solid #555;
+      color: var(--accent-color);
+      border-bottom: 1px solid var(--node-border);
       padding-bottom: 10px;
       font-size: 18px;
     }
     #edit-textarea {
       width: 100%;
       height: 120px;
-      background: #222;
-      color: white;
-      border: 1px solid #555;
+      background: var(--node-bg);
+      color: var(--node-text);
+      border: 1px solid var(--node-border);
       border-radius: 4px;
       padding: 10px;
       resize: vertical;
@@ -223,12 +392,12 @@
       min-width: 80px;
     }
     #edit-panel-save {
-      background: #2a6b9b;
-      color: white;
+      background: var(--toolbar-button-active);
+      color: var(--text-primary);
     }
     #edit-panel-cancel {
-      background: #555;
-      color: white;
+      background: var(--toolbar-button-bg);
+      color: var(--text-primary);
     }
     #overlay {
       position: fixed;
@@ -239,6 +408,90 @@
       background: rgba(0, 0, 0, 0.7);
       z-index: 90;
       display: none;
+    }
+    
+    /* Image Panel */
+    #image-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--edit-panel-bg);
+      border: 2px solid var(--accent-color);
+      border-radius: 8px;
+      padding: 20px;
+      z-index: 100;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+      width: 400px;
+      display: none;
+      transition: background-color 0.3s ease;
+    }
+    #image-panel h3 {
+      margin-top: 0;
+      color: var(--accent-color);
+      border-bottom: 1px solid var(--node-border);
+      padding-bottom: 10px;
+      font-size: 18px;
+    }
+    #image-url-input {
+      width: 100%;
+      padding: 10px;
+      background: var(--node-bg);
+      color: var(--node-text);
+      border: 1px solid var(--node-border);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-family: inherit;
+      font-size: 16px;
+    }
+    #image-upload-area {
+      border: 2px dashed var(--node-border);
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 15px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #image-upload-area:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    #image-upload-area p {
+      margin: 0;
+      color: var(--text-secondary);
+    }
+    #image-preview {
+      max-width: 100%;
+      max-height: 200px;
+      margin: 15px auto;
+      display: none;
+      border-radius: 4px;
+    }
+    #image-panel-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    #image-panel button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      min-width: 80px;
+    }
+    #image-panel-save {
+      background: var(--toolbar-button-active);
+      color: var(--text-primary);
+    }
+    #image-panel-cancel {
+      background: var(--toolbar-button-bg);
+      color: var(--text-primary);
+    }
+    #image-panel-remove {
+      background: #e74c3c;
+      color: var(--text-primary);
+      margin-right: auto;
     }
     
     /* Firebase auth UI */
@@ -255,24 +508,25 @@
       z-index: 1000;
     }
     #auth-box {
-      background: #333;
+      background: var(--auth-bg);
       padding: 30px;
       border-radius: 10px;
       width: 300px;
       text-align: center;
+      transition: background-color 0.3s ease;
     }
     #auth-box h2 {
       margin-top: 0;
-      color: #0ff;
+      color: var(--accent-color);
     }
     #auth-box input {
       width: 100%;
       padding: 12px;
       margin: 10px 0;
-      border: 1px solid #555;
+      border: 1px solid var(--node-border);
       border-radius: 4px;
-      background: #222;
-      color: white;
+      background: var(--node-bg);
+      color: var(--node-text);
       box-sizing: border-box;
     }
     #auth-box button {
@@ -281,13 +535,13 @@
       margin: 5px 0;
       border: none;
       border-radius: 4px;
-      background: #2a6b9b;
-      color: white;
+      background: var(--toolbar-button-active);
+      color: var(--text-primary);
       cursor: pointer;
     }
     #auth-box p {
       margin: 15px 0 5px;
-      color: #aaa;
+      color: var(--text-secondary);
     }
     #auth-message {
       color: #e74c3c;
@@ -310,18 +564,19 @@
       display: none;
     }
     #map-manager-box {
-      background: #333;
+      background: var(--manager-bg);
       padding: 20px;
       border-radius: 10px;
       width: 600px;
       max-width: 90%;
       max-height: 80%;
       overflow-y: auto;
+      transition: background-color 0.3s ease;
     }
     #map-manager-box h2 {
       margin-top: 0;
-      color: #0ff;
-      border-bottom: 1px solid #555;
+      color: var(--accent-color);
+      border-bottom: 1px solid var(--node-border);
       padding-bottom: 10px;
       display: flex;
       justify-content: space-between;
@@ -329,36 +584,38 @@
     }
     #map-manager-box h2 span {
       font-size: 16px;
-      color: #aaa;
+      color: var(--text-secondary);
     }
     #map-list-container {
       margin: 20px 0;
       max-height: 300px;
       overflow-y: auto;
-      border: 1px solid #555;
+      border: 1px solid var(--node-border);
       border-radius: 4px;
-      background: #222;
+      background: var(--node-bg);
     }
     .map-list-header {
       display: grid;
       grid-template-columns: 1fr 120px 120px;
       padding: 10px 16px;
-      background: #2a2a2a;
+      background: var(--toolbar-bg);
       font-weight: bold;
-      border-bottom: 1px solid #444;
+      border-bottom: 1px solid var(--node-border);
+      color: var(--text-primary);
     }
     .map-item {
       display: grid;
       grid-template-columns: 1fr 120px 120px;
       padding: 12px 16px;
-      border-bottom: 1px solid #444;
+      border-bottom: 1px solid var(--node-border);
       align-items: center;
+      color: var(--text-primary);
     }
     .map-item:hover {
-      background: #3a3a3a;
+      background: var(--toolbar-button-hover);
     }
     .map-item.active {
-      background: #2a6b9b;
+      background: var(--toolbar-button-active);
     }
     .map-item-name {
       font-weight: bold;
@@ -369,7 +626,7 @@
     }
     .map-item-date {
       font-size: 13px;
-      color: #aaa;
+      color: var(--text-secondary);
     }
     .map-item-actions {
       display: flex;
@@ -384,26 +641,26 @@
       font-size: 12px;
     }
     .map-item-actions .load-btn {
-      background: #2a6b9b;
-      color: white;
+      background: var(--toolbar-button-active);
+      color: var(--text-primary);
     }
     .map-item-actions .rename-btn {
       background: #f39c12;
-      color: white;
+      color: var(--text-primary);
     }
     .map-item-actions .delete-btn {
       background: #e74c3c;
-      color: white;
+      color: var(--text-primary);
     }
     #new-map-section {
       margin: 20px 0;
       padding: 15px;
-      background: #2a2a2a;
+      background: var(--toolbar-bg);
       border-radius: 6px;
     }
     #new-map-section h3 {
       margin-top: 0;
-      color: #0ff;
+      color: var(--accent-color);
     }
     #new-map-form {
       display: flex;
@@ -412,15 +669,15 @@
     #new-map-input {
       flex: 1;
       padding: 10px;
-      background: #222;
-      color: white;
-      border: 1px solid #555;
+      background: var(--node-bg);
+      color: var(--node-text);
+      border: 1px solid var(--node-border);
       border-radius: 4px;
     }
     #create-map-btn {
       padding: 10px 16px;
       background: #2ecc71;
-      color: white;
+      color: var(--text-primary);
       border: none;
       border-radius: 4px;
       cursor: pointer;
@@ -439,15 +696,16 @@
       font-size: 14px;
     }
     #close-map-manager {
-      background: #555;
-      color: white;
+      background: var(--toolbar-button-bg);
+      color: var(--text-primary);
     }
     #current-map-info {
       margin: 10px 0;
       padding: 10px;
-      background: #2a2a2a;
+      background: var(--toolbar-bg);
       border-radius: 4px;
       font-size: 14px;
+      color: var(--text-primary);
     }
     
     /* Expand/Collapse Button Styles */
@@ -458,8 +716,8 @@
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      background: #555;
-      color: white;
+      background: var(--toolbar-button-bg);
+      color: var(--text-primary);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -468,7 +726,7 @@
       transition: background 0.2s;
     }
     .expand-toggle:hover {
-      background: #777;
+      background: var(--toolbar-button-hover);
     }
     .node.collapsed > .expand-toggle::after {
       content: '+';
@@ -478,6 +736,37 @@
     }
     .node.collapsed .node-content {
       opacity: 0.8;
+    }
+    
+    /* Theme-specific background effects */
+    [data-theme="glass"] #world {
+      backdrop-filter: blur(10px);
+    }
+    
+    [data-theme="water"] #world {
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(0, 168, 255, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(0, 232, 216, 0.1) 0%, transparent 20%);
+      background-attachment: fixed;
+    }
+    
+    [data-theme="notebook"] #world {
+      background-image: 
+        linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    
+    [data-theme="cyber"] #world {
+      background-image: 
+        linear-gradient(rgba(0, 255, 157, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 157, 0.05) 1px, transparent 1px);
+      background-size: 30px 30px;
+    }
+    
+    [data-theme="scifi"] #world {
+      background-image: 
+        radial-gradient(circle at 50% 50%, rgba(255, 214, 10, 0.05) 0%, transparent 50%);
     }
     
     /* Mobile-specific styles */
@@ -540,6 +829,10 @@
         right: 6px;
         top: 6px;
       }
+      #image-panel {
+        width: 90%;
+        max-width: 350px;
+      }
     }
     
     /* Prevent text selection on UI elements */
@@ -557,6 +850,69 @@
     @keyframes pulse {
       from { transform: scale(1); }
       to { transform: scale(1.05); }
+    }
+    
+    /* Theme Switcher Styles */
+    .theme-selector {
+      position: relative;
+    }
+    
+    .theme-options {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: var(--toolbar-bg);
+      border: 1px solid var(--node-border);
+      border-radius: 6px;
+      padding: 10px;
+      display: none;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      z-index: 20;
+      min-width: 200px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .theme-option {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all 0.2s ease;
+    }
+    
+    .theme-option:hover {
+      transform: scale(1.1);
+    }
+    
+    .theme-option.active {
+      border-color: var(--accent-color);
+      box-shadow: 0 0 8px var(--accent-color);
+    }
+    
+    .theme-default {
+      background: linear-gradient(135deg, #111 0%, #333 100%);
+    }
+    
+    .theme-cyber {
+      background: linear-gradient(135deg, #0a0a16 0%, #4a1b8c 100%);
+    }
+    
+    .theme-glass {
+      background: linear-gradient(135deg, #0e1c26 0%, #295b77 100%);
+    }
+    
+    .theme-scifi {
+      background: linear-gradient(135deg, #000814 0%, #001d3d 100%);
+    }
+    
+    .theme-notebook {
+      background: linear-gradient(135deg, #f0e6d2 0%, #e6d6b9 100%);
+    }
+    
+    .theme-water {
+      background: linear-gradient(135deg, #003b46 0%, #07575b 100%);
     }
   </style>
 </head>
@@ -620,6 +976,7 @@
     <button id="resetViewBtn">Reset View</button>
     <div class="separator"></div>
     <button id="colorBtn">Color</button>
+    <button id="imageBtn">Add Image</button>
     <button id="exportBtn">Export</button>
     <button id="importBtn">Import</button>
     <div class="separator"></div>
@@ -635,6 +992,20 @@
     <button id="loadBtn">Load from Cloud</button>
     <button id="mapsBtn">Manage Maps</button>
     <button id="expandCollapseBtn">Expand/Collapse</button>
+    
+    <!-- Theme Selector -->
+    <div class="theme-selector">
+      <button id="themeBtn">Themes</button>
+      <div id="themeOptions" class="theme-options">
+        <div class="theme-option theme-default active" data-theme="default"></div>
+        <div class="theme-option theme-cyber" data-theme="cyber"></div>
+        <div class="theme-option theme-glass" data-theme="glass"></div>
+        <div class="theme-option theme-scifi" data-theme="scifi"></div>
+        <div class="theme-option theme-notebook" data-theme="notebook"></div>
+        <div class="theme-option theme-water" data-theme="water"></div>
+      </div>
+    </div>
+    
     <button id="logoutBtn" style="display:none;">Logout</button>
   </div>
   <div id="stage">
@@ -655,6 +1026,23 @@
     </div>
   </div>
   
+  <!-- Image Panel -->
+  <div id="image-panel">
+    <h3>Add Image to Node</h3>
+    <input type="text" id="image-url-input" placeholder="Enter image URL">
+    <p>Or</p>
+    <div id="image-upload-area">
+      <p>Click to upload an image or drag & drop here</p>
+      <input type="file" id="image-file-input" accept="image/*" style="display: none;">
+    </div>
+    <img id="image-preview" alt="Image preview">
+    <div id="image-panel-buttons">
+      <button id="image-panel-remove">Remove Image</button>
+      <button id="image-panel-cancel">Cancel</button>
+      <button id="image-panel-save">Save</button>
+    </div>
+  </div>
+  
   <script>
     // Firebase configuration
     const firebaseConfig = {
@@ -672,6 +1060,7 @@
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const auth = firebase.auth();
+    const storage = firebase.storage();
     
     // Main application variables
     const world = document.getElementById('world');
@@ -704,8 +1093,20 @@
     let zoomCenterX = 0;
     let zoomCenterY = 0;
     
+    // Theme management
+    let currentTheme = 'default';
+    
+    // Image handling variables
+    let imageEditingNodeId = null;
+    
     // Initialize the application
     function init() {
+      // Load saved theme if available
+      const savedTheme = localStorage.getItem('mindmap_theme');
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+      
       // Setup auth event listeners
       setupAuthEventListeners();
       
@@ -893,6 +1294,16 @@
         showColorMenu();
       };
       
+      // Image button event handler
+      document.getElementById('imageBtn').onclick = (e) => {
+        e.stopPropagation();
+        if (selectedNode) {
+          showImagePanel(selectedNode);
+        } else {
+          alert('Please select a node first to add an image.');
+        }
+      };
+      
       document.getElementById('exportBtn').onclick = exportData;
       document.getElementById('importBtn').onclick = () => document.getElementById('importInput')?.click() || createImportInput();
       
@@ -917,6 +1328,35 @@
       // Expand/Collapse button
       document.getElementById('expandCollapseBtn').onclick = toggleExpandCollapse;
       
+      // Theme button
+      document.getElementById('themeBtn').onclick = (e) => {
+        e.stopPropagation();
+        const themeOptions = document.getElementById('themeOptions');
+        themeOptions.style.display = themeOptions.style.display === 'grid' ? 'none' : 'grid';
+      };
+      
+      // Theme selection
+      document.querySelectorAll('.theme-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+          const theme = e.target.getAttribute('data-theme');
+          setTheme(theme);
+          document.getElementById('themeOptions').style.display = 'none';
+          
+          // Update active theme indicator
+          document.querySelectorAll('.theme-option').forEach(opt => {
+            opt.classList.remove('active');
+          });
+          e.target.classList.add('active');
+        });
+      });
+      
+      // Close theme options when clicking elsewhere
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.theme-selector')) {
+          document.getElementById('themeOptions').style.display = 'none';
+        }
+      });
+      
       // Edit panel buttons
       document.getElementById('edit-panel-save').onclick = () => {
         saveEditPanel();
@@ -924,6 +1364,52 @@
       };
       document.getElementById('edit-panel-cancel').onclick = closeEditPanel;
       document.getElementById('overlay').onclick = closeEditPanel;
+      
+      // Image panel buttons
+      document.getElementById('image-panel-save').onclick = saveImagePanel;
+      document.getElementById('image-panel-cancel').onclick = closeImagePanel;
+      document.getElementById('image-panel-remove').onclick = removeNodeImage;
+      document.getElementById('overlay').addEventListener('click', closeImagePanel);
+      
+      // Image URL input handling
+      document.getElementById('image-url-input').addEventListener('input', handleImageUrlInput);
+      document.getElementById('image-url-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          handleImageUrlInput();
+        }
+      });
+      
+      // Image upload handling
+      document.getElementById('image-upload-area').addEventListener('click', () => {
+        document.getElementById('image-file-input').click();
+      });
+      
+      document.getElementById('image-file-input').addEventListener('change', handleImageUpload);
+      
+      // Drag and drop for image upload
+      const uploadArea = document.getElementById('image-upload-area');
+      uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.style.background = 'rgba(255,255,255,0.1)';
+      });
+      
+      uploadArea.addEventListener('dragleave', () => {
+        uploadArea.style.background = '';
+      });
+      
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.background = '';
+        
+        if (e.dataTransfer.files.length > 0) {
+          const file = e.dataTransfer.files[0];
+          if (file.type.startsWith('image/')) {
+            previewImageFile(file);
+          } else {
+            alert('Please drop an image file.');
+          }
+        }
+      });
       
       // Map manager event listeners
       document.getElementById('create-map-btn').onclick = createNewMap;
@@ -951,7 +1437,7 @@
         if (!e.target.closest('.node') && !e.target.closest('.context-menu') && 
             !e.target.closest('.node-edit-input') && !e.target.closest('#edit-panel') &&
             !e.target.closest('#map-manager-container') && !e.target.closest('.expand-toggle') &&
-            !e.target.closest('#toolbar')) { // Added exclusion for toolbar
+            !e.target.closest('#image-panel') && !e.target.closest('#toolbar')) { // Added exclusion for toolbar
           clearSelection();
           hideContextMenu();
         }
@@ -974,6 +1460,13 @@
           isDraggingNode = false;
         }
       });
+    }
+    
+    // Set the current theme
+    function setTheme(theme) {
+      currentTheme = theme;
+      document.body.setAttribute('data-theme', theme);
+      localStorage.setItem('mindmap_theme', theme);
     }
     
     // Save mind map to Firebase
@@ -1320,8 +1813,8 @@
       nodeElement.dataset.id = node.id;
       nodeElement.style.left = node.x + 'px';
       nodeElement.style.top = node.y + 'px';
-      nodeElement.style.backgroundColor = node.color || '#333';
-      nodeElement.style.borderColor = node.borderColor || '#666';
+      nodeElement.style.backgroundColor = node.color || 'var(--node-bg)';
+      nodeElement.style.borderColor = node.borderColor || 'var(--node-border)';
       
       // Add expand/collapse toggle button
       const expandToggle = document.createElement('div');
@@ -1334,7 +1827,19 @@
       
       const contentDiv = document.createElement('div');
       contentDiv.className = 'node-content';
-      contentDiv.textContent = node.text;
+      
+      const textDiv = document.createElement('div');
+      textDiv.textContent = node.text;
+      contentDiv.appendChild(textDiv);
+      
+      // Add image if it exists
+      if (node.imageUrl) {
+        const img = document.createElement('img');
+        img.className = 'node-image';
+        img.src = node.imageUrl;
+        img.alt = 'Node image';
+        contentDiv.appendChild(img);
+      }
       
       nodeElement.appendChild(contentDiv);
       world.appendChild(nodeElement);
@@ -1422,8 +1927,8 @@
         x: x,
         y: y,
         text: text || 'New Node',
-        color: '#333',
-        borderColor: '#666',
+        color: 'var(--node-bg)',
+        borderColor: 'var(--node-border)',
         expanded: true // Default to expanded
       };
       
@@ -1559,7 +2064,7 @@
         nodes[nodeId].text = editTextarea.value;
         
         // Update the node text in the DOM
-        const nodeElement = document.querySelector(`.node[data-id="${nodeId}"] .node-content`);
+        const nodeElement = document.querySelector(`.node[data-id="${nodeId}"] .node-content div`);
         if (nodeElement) {
           nodeElement.textContent = editTextarea.value;
         }
@@ -1625,6 +2130,183 @@
           nodeElement.style.backgroundColor = color;
         }
       }
+    }
+    
+    // Show image panel for a node
+    function showImagePanel(node) {
+      const imagePanel = document.getElementById('image-panel');
+      const imageUrlInput = document.getElementById('image-url-input');
+      const imagePreview = document.getElementById('image-preview');
+      const overlay = document.getElementById('overlay');
+      const removeBtn = document.getElementById('image-panel-remove');
+      
+      // Set current URL if exists
+      imageUrlInput.value = node.imageUrl || '';
+      
+      // Show preview if URL exists
+      if (node.imageUrl) {
+        imagePreview.src = node.imageUrl;
+        imagePreview.style.display = 'block';
+        removeBtn.style.display = 'block';
+      } else {
+        imagePreview.style.display = 'none';
+        removeBtn.style.display = 'none';
+      }
+      
+      imagePanel.style.display = 'block';
+      overlay.style.display = 'block';
+      
+      // Store which node we're editing
+      imagePanel.dataset.editingNode = node.id;
+      imageEditingNodeId = node.id;
+    }
+    
+    // Close image panel
+    function closeImagePanel() {
+      document.getElementById('image-panel').style.display = 'none';
+      document.getElementById('overlay').style.display = 'none';
+      document.getElementById('image-url-input').value = '';
+      document.getElementById('image-preview').style.display = 'none';
+      document.getElementById('image-preview').src = '';
+      document.getElementById('image-file-input').value = '';
+      imageEditingNodeId = null;
+    }
+    
+    // Handle image URL input
+    function handleImageUrlInput() {
+      const url = document.getElementById('image-url-input').value.trim();
+      const imagePreview = document.getElementById('image-preview');
+      const removeBtn = document.getElementById('image-panel-remove');
+      
+      if (url) {
+        // Validate URL
+        if (isValidImageUrl(url)) {
+          imagePreview.src = url;
+          imagePreview.style.display = 'block';
+          removeBtn.style.display = 'block';
+        } else {
+          alert('Please enter a valid image URL (jpg, png, gif, webp)');
+        }
+      } else {
+        imagePreview.style.display = 'none';
+        removeBtn.style.display = 'none';
+      }
+    }
+    
+    // Check if URL is a valid image
+    function isValidImageUrl(url) {
+      return /\.(jpeg|jpg|gif|png|webp)$/i.test(url) || 
+             /^data:image\/(jpeg|jpg|gif|png|webp);base64,/i.test(url);
+    }
+    
+    // Handle image upload
+    function handleImageUpload(e) {
+      const file = e.target.files[0];
+      if (file) {
+        previewImageFile(file);
+      }
+    }
+    
+    // Preview image file
+    function previewImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file.');
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const imagePreview = document.getElementById('image-preview');
+        const imageUrlInput = document.getElementById('image-url-input');
+        const removeBtn = document.getElementById('image-panel-remove');
+        
+        imagePreview.src = e.target.result;
+        imagePreview.style.display = 'block';
+        imageUrlInput.value = e.target.result; // Set as data URL
+        removeBtn.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+    
+    // Save image from panel
+    function saveImagePanel() {
+      const imageUrl = document.getElementById('image-url-input').value.trim();
+      const nodeId = document.getElementById('image-panel').dataset.editingNode;
+      
+      if (nodeId && nodes[nodeId]) {
+        if (imageUrl) {
+          // Validate URL
+          if (!isValidImageUrl(imageUrl)) {
+            alert('Please enter a valid image URL (jpg, png, gif, webp)');
+            return;
+          }
+          
+          // Update the node image in the data model
+          nodes[nodeId].imageUrl = imageUrl;
+          
+          // Update the node image in the DOM
+          updateNodeImage(nodeId, imageUrl);
+        } else {
+          // Remove image if URL is empty
+          nodes[nodeId].imageUrl = '';
+          removeNodeImageFromDOM(nodeId);
+        }
+        
+        saveToFirebase(); // Auto-save after image change
+      }
+      
+      closeImagePanel();
+    }
+    
+    // Update node image in DOM
+    function updateNodeImage(nodeId, imageUrl) {
+      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+      if (nodeElement) {
+        // Remove existing image if any
+        const existingImg = nodeElement.querySelector('.node-image');
+        if (existingImg) {
+          existingImg.remove();
+        }
+        
+        // Add new image
+        if (imageUrl) {
+          const img = document.createElement('img');
+          img.className = 'node-image';
+          img.src = imageUrl;
+          img.alt = 'Node image';
+          
+          const contentDiv = nodeElement.querySelector('.node-content');
+          contentDiv.appendChild(img);
+        }
+      }
+    }
+    
+    // Remove node image from DOM
+    function removeNodeImageFromDOM(nodeId) {
+      const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
+      if (nodeElement) {
+        const existingImg = nodeElement.querySelector('.node-image');
+        if (existingImg) {
+          existingImg.remove();
+        }
+      }
+    }
+    
+    // Remove image from node
+    function removeNodeImage() {
+      const nodeId = document.getElementById('image-panel').dataset.editingNode;
+      
+      if (nodeId && nodes[nodeId]) {
+        // Remove the node image in the data model
+        nodes[nodeId].imageUrl = '';
+        
+        // Remove the node image in the DOM
+        removeNodeImageFromDOM(nodeId);
+        
+        saveToFirebase(); // Auto-save after image removal
+      }
+      
+      closeImagePanel();
     }
     
     // Export data as JSON
@@ -2076,6 +2758,7 @@
       const menuItems = [
         { text: 'Edit', action: () => showEditPanel(node) },
         { text: 'Change Color', action: () => showColorMenu() },
+        { text: 'Add Image', action: () => showImagePanel(node) },
         { text: 'Delete', action: () => { deleteSelected(); saveToFirebase(); } },
         { text: 'Add Child Node', action: () => {
           const childX = node.x + 200;
@@ -2088,6 +2771,15 @@
           toggleNode(node.id);
         }}
       ];
+      
+      // If node has an image, add option to remove it
+      if (node.imageUrl) {
+        menuItems.splice(3, 0, { text: 'Remove Image', action: () => {
+          node.imageUrl = '';
+          removeNodeImageFromDOM(node.id);
+          saveToFirebase();
+        }});
+      }
       
       menuItems.forEach(item => {
         const menuItem = document.createElement('div');
