@@ -1371,8 +1371,14 @@
       document.getElementById('image-panel-remove').onclick = removeNodeImage;
       document.getElementById('overlay').addEventListener('click', closeImagePanel);
       
-      // Image URL input handling
-      document.getElementById('image-url-input').addEventListener('input', handleImageUrlInput);
+      // Image URL input handling - UPDATED to use debounce
+      let debounceTimer;
+      const debounceHandleImageUrlInput = () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(handleImageUrlInput, 800);
+      };
+      
+      document.getElementById('image-url-input').addEventListener('input', debounceHandleImageUrlInput);
       document.getElementById('image-url-input').addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
           handleImageUrlInput();
@@ -1838,6 +1844,14 @@
         img.className = 'node-image';
         img.src = node.imageUrl;
         img.alt = 'Node image';
+        img.onerror = function() {
+          // If image fails to load, show a placeholder
+          this.style.display = 'none';
+          const placeholder = document.createElement('div');
+          placeholder.className = 'node-image-placeholder';
+          placeholder.textContent = 'Image not found';
+          contentDiv.appendChild(placeholder);
+        };
         contentDiv.appendChild(img);
       }
       
@@ -2172,20 +2186,30 @@
       imageEditingNodeId = null;
     }
     
-    // Handle image URL input
+    // Handle image URL input - UPDATED to better handle image URLs
     function handleImageUrlInput() {
       const url = document.getElementById('image-url-input').value.trim();
       const imagePreview = document.getElementById('image-preview');
       const removeBtn = document.getElementById('image-panel-remove');
       
       if (url) {
-        // Validate URL
+        // Validate URL - more permissive check for various image URLs
         if (isValidImageUrl(url)) {
-          imagePreview.src = url;
-          imagePreview.style.display = 'block';
-          removeBtn.style.display = 'block';
+          // Create a test image to check if it loads successfully
+          const testImage = new Image();
+          testImage.onload = function() {
+            imagePreview.src = url;
+            imagePreview.style.display = 'block';
+            removeBtn.style.display = 'block';
+          };
+          testImage.onerror = function() {
+            alert('The image URL is valid but the image failed to load. Please check the URL and try again.');
+            imagePreview.style.display = 'none';
+            removeBtn.style.display = 'none';
+          };
+          testImage.src = url;
         } else {
-          alert('Please enter a valid image URL (jpg, png, gif, webp)');
+          alert('Please enter a valid image URL (jpg, png, gif, webp, or other common image formats)');
         }
       } else {
         imagePreview.style.display = 'none';
@@ -2193,10 +2217,26 @@
       }
     }
     
-    // Check if URL is a valid image
+    // Check if URL is a valid image - UPDATED to be more permissive
     function isValidImageUrl(url) {
-      return /\.(jpeg|jpg|gif|png|webp)$/i.test(url) || 
-             /^data:image\/(jpeg|jpg|gif|png|webp);base64,/i.test(url);
+      // Allow any URL that starts with http, https, or data URI
+      if (!/^(https?|data):/i.test(url)) {
+        return false;
+      }
+      
+      // Check for common image file extensions
+      if (/\.(jpeg|jpg|gif|png|webp|bmp|svg|tiff?)$/i.test(url)) {
+        return true;
+      }
+      
+      // Check for data URI with image type
+      if (/^data:image\/(jpeg|jpg|gif|png|webp|bmp|svg\+xml|tiff?);base64,/i.test(url)) {
+        return true;
+      }
+      
+      // Allow URLs without extensions (they might be from image hosting services)
+      // We'll let the image loading test determine if it's valid
+      return true;
     }
     
     // Handle image upload
@@ -2237,7 +2277,7 @@
         if (imageUrl) {
           // Validate URL
           if (!isValidImageUrl(imageUrl)) {
-            alert('Please enter a valid image URL (jpg, png, gif, webp)');
+            alert('Please enter a valid image URL (jpg, png, gif, webp, or other common image formats)');
             return;
           }
           
@@ -2264,8 +2304,12 @@
       if (nodeElement) {
         // Remove existing image if any
         const existingImg = nodeElement.querySelector('.node-image');
+        const existingPlaceholder = nodeElement.querySelector('.node-image-placeholder');
         if (existingImg) {
           existingImg.remove();
+        }
+        if (existingPlaceholder) {
+          existingPlaceholder.remove();
         }
         
         // Add new image
@@ -2274,6 +2318,14 @@
           img.className = 'node-image';
           img.src = imageUrl;
           img.alt = 'Node image';
+          img.onerror = function() {
+            // If image fails to load, show a placeholder
+            this.style.display = 'none';
+            const placeholder = document.createElement('div');
+            placeholder.className = 'node-image-placeholder';
+            placeholder.textContent = 'Image not found';
+            nodeElement.querySelector('.node-content').appendChild(placeholder);
+          };
           
           const contentDiv = nodeElement.querySelector('.node-content');
           contentDiv.appendChild(img);
@@ -2286,8 +2338,12 @@
       const nodeElement = document.querySelector(`.node[data-id="${nodeId}"]`);
       if (nodeElement) {
         const existingImg = nodeElement.querySelector('.node-image');
+        const existingPlaceholder = nodeElement.querySelector('.node-image-placeholder');
         if (existingImg) {
           existingImg.remove();
+        }
+        if (existingPlaceholder) {
+          existingPlaceholder.remove();
         }
       }
     }
